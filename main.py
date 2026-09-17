@@ -1,7 +1,15 @@
+# ============================================================
+# Academic Word Editor
 # main.py
+# Version 2.2.0
+# ============================================================
+
 import os
 import json
 from datetime import datetime
+
+import arabic_reshaper
+from bidi.algorithm import get_display
 
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
@@ -19,125 +27,17 @@ from kivy.resources import resource_find
 from kivy.metrics import dp
 
 
-# =====================================================
-# Arabic Font
-# =====================================================
-
-FONT_ARABIC = "NotoNaskh"
-FONT_PATH = "assets/fonts/NotoNaskhArabic-Regular.ttf"
-FONT_LOADED = False
-
-try:
-    real_path = resource_find(FONT_PATH)
-
-    print(f"[FONT] resource_find: {real_path}")
-
-    if real_path:
-        LabelBase.register(
-            name=FONT_ARABIC,
-            fn_regular=real_path
-        )
-
-        FONT_LOADED = True
-        print(f"[FONT] Registered OK: {FONT_ARABIC}")
-
-    else:
-        print(f"[FONT] NOT FOUND: {FONT_PATH}")
-
-except Exception as e:
-    print(f"[FONT] ERROR: {e}")
-
-
-# =====================================================
-# Arabic / RTL Support
-# =====================================================
-
-def ar(text):
-    """
-    Keep Arabic text in its original Unicode order.
-
-    Arabic shaping and RTL rendering are handled by
-    Kivy/Pango.
-
-    IMPORTANT:
-    Do NOT use arabic_reshaper or python-bidi here.
-    """
-
-    return text or ""
-
-
-def afont():
-    """
-    Return Arabic font configuration only.
-
-    RTL properties are handled separately by
-    aLabel(), aButton(), and aTextInput().
-    """
-
-    result = {}
-
-    if FONT_LOADED:
-        result["font_name"] = FONT_ARABIC
-
-    return result
-
-def aLabel(text="", **kwargs):
-    """
-    Create an Arabic RTL Label.
-    """
-
-    kwargs.setdefault("halign", "right")
-    kwargs.setdefault("base_direction", "rtl")
-    kwargs.setdefault("text_language", "ar")
-
-    return Label(
-        text=text or "",
-        **afont(),
-        **kwargs
-    )
-
-
-def aButton(text="", **kwargs):
-    """
-    Create an Arabic RTL Button.
-    """
-
-    kwargs.setdefault("halign", "center")
-    kwargs.setdefault("base_direction", "rtl")
-    kwargs.setdefault("text_language", "ar")
-
-    return Button(
-        text=text or "",
-        **afont(),
-        **kwargs
-    )
-
-
-def aTextInput(text="", **kwargs):
-    """
-    Create an Arabic RTL TextInput.
-
-    The actual text remains normal Unicode Arabic.
-    It is NOT reshaped or reversed.
-    """
-
-    kwargs.setdefault("halign", "right")
-    kwargs.setdefault("base_direction", "rtl")
-    kwargs.setdefault("text_language", "ar")
-
-    return TextInput(
-        text=text or "",
-        **afont(),
-        **kwargs
-    )
-
-
-# =====================================================
-# Configuration
-# =====================================================
+# ============================================================
+# Application Information
+# ============================================================
 
 APP_NAME = "محرر أكاديمي"
-APP_VERSION = "2.1.1"
+APP_VERSION = "2.2.0"
+
+
+# ============================================================
+# Colors
+# ============================================================
 
 COLOR_PRIMARY = (0.12, 0.20, 0.35, 1)
 COLOR_SECONDARY = (0.20, 0.40, 0.60, 1)
@@ -156,9 +56,314 @@ COLOR_TOOLBAR_BG = (0.94, 0.95, 0.96, 1)
 COLOR_TOOLBAR_BTN = (0.30, 0.40, 0.50, 1)
 
 
-# =====================================================
-# Arabic Strings
-# =====================================================
+# ============================================================
+# Arabic Font
+# ============================================================
+
+FONT_ARABIC = "NotoNaskh"
+FONT_PATH = "assets/fonts/NotoNaskhArabic-Regular.ttf"
+FONT_LOADED = False
+
+
+try:
+
+    real_path = resource_find(FONT_PATH)
+
+    print(f"[FONT] resource_find: {real_path}")
+
+    if real_path:
+
+        LabelBase.register(
+            name=FONT_ARABIC,
+            fn_regular=real_path
+        )
+
+        FONT_LOADED = True
+
+        print(
+            f"[FONT] Registered successfully: {FONT_ARABIC}"
+        )
+
+    else:
+
+        print(
+            f"[FONT] NOT FOUND: {FONT_PATH}"
+        )
+
+except Exception as e:
+
+    print(
+        f"[FONT] ERROR: {e}"
+    )
+
+
+# ============================================================
+# Arabic Display Processing
+# ============================================================
+
+def arabic_display(text):
+    """
+    Prepare Arabic text for visual display.
+
+    The original Unicode text is NOT modified.
+    This function is used only for visual output.
+    """
+
+    if not text:
+        return ""
+
+    try:
+
+        reshaped = arabic_reshaper.reshape(text)
+
+        return get_display(reshaped)
+
+    except Exception as e:
+
+        print(
+            f"[ARABIC DISPLAY ERROR] {e}"
+        )
+
+        return text
+
+
+def font_kwargs():
+
+    result = {}
+
+    if FONT_LOADED:
+
+        result["font_name"] = FONT_ARABIC
+
+    return result
+
+
+# ============================================================
+# Arabic Label
+# ============================================================
+
+def aLabel(text="", **kwargs):
+
+    display_text = arabic_display(
+        text or ""
+    )
+
+    return Label(
+        text=display_text,
+        **font_kwargs(),
+        **kwargs
+    )
+
+
+# ============================================================
+# Arabic Button
+# ============================================================
+
+def aButton(text="", **kwargs):
+
+    display_text = arabic_display(
+        text or ""
+    )
+
+    return Button(
+        text=display_text,
+        **font_kwargs(),
+        **kwargs
+    )
+
+
+# ============================================================
+# Arabic TextInput
+# ============================================================
+
+class ArabicTextInput(TextInput):
+    """
+    Practical Arabic TextInput.
+
+    The visible text is shaped for correct Arabic display.
+
+    The original Unicode text is kept separately in
+    self.raw_text.
+
+    This allows saving the original Unicode text instead
+    of saving Arabic presentation forms.
+    """
+
+    def __init__(self, **kwargs):
+
+        self.raw_text = kwargs.pop(
+            "raw_text",
+            kwargs.get("text", "")
+        )
+
+        self._updating = False
+        self._initialized = False
+
+        super().__init__(
+            **kwargs
+        )
+
+        self.bind(
+            text=self._on_visible_text_changed
+        )
+
+        self._initialized = True
+
+        self._refresh_display()
+
+    # --------------------------------------------------------
+    # Display conversion
+    # --------------------------------------------------------
+
+    def _shape_for_display(self, text):
+
+        if not text:
+            return ""
+
+        try:
+
+            reshaped = arabic_reshaper.reshape(
+                text
+            )
+
+            return get_display(
+                reshaped
+            )
+
+        except Exception as e:
+
+            print(
+                f"[TEXT DISPLAY ERROR] {e}"
+            )
+
+            return text
+
+    # --------------------------------------------------------
+    # Convert visible text back to raw Unicode
+    # --------------------------------------------------------
+
+    def _restore_raw_text(self, text):
+
+        """
+        Best-effort conversion from the visual Arabic
+        presentation forms back to normal Unicode.
+
+        Arabic presentation characters are normalized
+        using Unicode normalization.
+        """
+
+        if not text:
+            return ""
+
+        try:
+
+            import unicodedata
+
+            normalized = unicodedata.normalize(
+                "NFKC",
+                text
+            )
+
+            return normalized
+
+        except Exception:
+
+            return text
+
+    # --------------------------------------------------------
+    # Update raw text when user changes text
+    # --------------------------------------------------------
+
+    def _on_visible_text_changed(
+        self,
+        instance,
+        value
+    ):
+
+        if self._updating:
+
+            return
+
+        if not self._initialized:
+
+            return
+
+        self.raw_text = self._restore_raw_text(
+            value
+        )
+
+    # --------------------------------------------------------
+    # Refresh visible text
+    # --------------------------------------------------------
+
+    def _refresh_display(self):
+
+        self._updating = True
+
+        try:
+
+            self.text = self._shape_for_display(
+                self.raw_text
+            )
+
+        finally:
+
+            self._updating = False
+
+    # --------------------------------------------------------
+    # Set normal Unicode text
+    # --------------------------------------------------------
+
+    def set_raw_text(self, text):
+
+        self.raw_text = text or ""
+
+        self._refresh_display()
+
+    # --------------------------------------------------------
+    # Get normal Unicode text
+    # --------------------------------------------------------
+
+    def get_raw_text(self):
+
+        if self.raw_text is not None:
+
+            return self.raw_text
+
+        return self._restore_raw_text(
+            self.text
+        )
+
+
+# ============================================================
+# Arabic TextInput Factory
+# ============================================================
+
+def aTextInput(text="", **kwargs):
+
+    kwargs.setdefault(
+        "halign",
+        "right"
+    )
+
+    kwargs.setdefault(
+        "multiline",
+        True
+    )
+
+    return ArabicTextInput(
+        raw_text=text or "",
+        text=arabic_display(
+            text or ""
+        ),
+        **font_kwargs(),
+        **kwargs
+    )
+
+
+# ============================================================
+# Arabic Messages
+# ============================================================
 
 MSG_APP_NAME = "محرر أكاديمي"
 MSG_SUBTITLE = "محرر المستندات الأكاديمية"
@@ -199,9 +404,9 @@ MSG_TOOL_ITALIC = "I"
 MSG_TOOL_UNDERLINE = "U"
 
 
-# =====================================================
+# ============================================================
 # Storage
-# =====================================================
+# ============================================================
 
 STORAGE_DIR = None
 
@@ -211,35 +416,49 @@ def get_storage_dir():
     candidates = []
 
     try:
-        if App.get_running_app():
 
-            base = App.get_running_app().user_data_dir
+        app = App.get_running_app()
+
+        if app:
 
             candidates.append(
-                os.path.join(base, "documents")
+                os.path.join(
+                    app.user_data_dir,
+                    "documents"
+                )
             )
 
     except Exception:
+
         pass
 
     candidates.append(
-        os.path.join("data", "documents")
+        os.path.join(
+            "data",
+            "documents"
+        )
     )
 
     for path in candidates:
 
         try:
+
             os.makedirs(
                 path,
                 exist_ok=True
             )
 
-            print(f"[STORAGE] Using: {path}")
+            print(
+                f"[STORAGE] Using: {path}"
+            )
 
             return path
 
-        except Exception:
-            continue
+        except Exception as e:
+
+            print(
+                f"[STORAGE] Failed: {path} - {e}"
+            )
 
     return candidates[-1]
 
@@ -253,9 +472,9 @@ def set_storage_dir():
     return STORAGE_DIR
 
 
-# =====================================================
+# ============================================================
 # Document Manager
-# =====================================================
+# ============================================================
 
 class DocManager:
 
@@ -303,11 +522,17 @@ class DocManager:
                 created = datetime.now().isoformat()
 
         data = {
+
             "id": doc_id,
+
             "title": title or MSG_UNTITLED,
+
             "content": content or "",
+
             "created": created,
+
             "updated": datetime.now().isoformat(),
+
         }
 
         try:
@@ -325,13 +550,17 @@ class DocManager:
                     indent=2
                 )
 
-            print(f"[SAVE] {doc_id}")
+            print(
+                f"[SAVE] {doc_id}"
+            )
 
             return doc_id
 
         except Exception as e:
 
-            print(f"[SAVE ERROR] {e}")
+            print(
+                f"[SAVE ERROR] {e}"
+            )
 
             return None
 
@@ -339,6 +568,7 @@ class DocManager:
     def load(doc_id):
 
         if not doc_id:
+
             return None
 
         path = DocManager.path_for(
@@ -346,6 +576,7 @@ class DocManager:
         )
 
         if not os.path.exists(path):
+
             return None
 
         try:
@@ -360,7 +591,9 @@ class DocManager:
 
         except Exception as e:
 
-            print(f"[LOAD ERROR] {e}")
+            print(
+                f"[LOAD ERROR] {e}"
+            )
 
             return None
 
@@ -368,6 +601,7 @@ class DocManager:
     def delete(doc_id):
 
         if not doc_id:
+
             return False
 
         path = DocManager.path_for(
@@ -380,13 +614,17 @@ class DocManager:
 
                 os.remove(path)
 
-                print(f"[DELETE] {doc_id}")
+                print(
+                    f"[DELETE] {doc_id}"
+                )
 
                 return True
 
         except Exception as e:
 
-            print(f"[DELETE ERROR] {e}")
+            print(
+                f"[DELETE ERROR] {e}"
+            )
 
         return False
 
@@ -398,6 +636,7 @@ class DocManager:
         if not os.path.isdir(
             STORAGE_DIR
         ):
+
             return docs
 
         try:
@@ -406,7 +645,10 @@ class DocManager:
                 STORAGE_DIR
             ):
 
-                if not fname.endswith(".json"):
+                if not fname.endswith(
+                    ".json"
+                ):
+
                     continue
 
                 try:
@@ -423,22 +665,27 @@ class DocManager:
                         data = json.load(f)
 
                     docs.append({
+
                         "id": data.get(
                             "id",
                             fname[:-5]
                         ),
+
                         "title": data.get(
                             "title",
                             MSG_UNTITLED
                         ),
+
                         "created": data.get(
                             "created",
                             ""
                         ),
+
                         "updated": data.get(
                             "updated",
                             ""
                         ),
+
                     })
 
                 except Exception as e:
@@ -464,15 +711,17 @@ class DocManager:
         return docs
 
 
-# =====================================================
+# ============================================================
 # Home Screen
-# =====================================================
+# ============================================================
 
 class HomeScreen(Screen):
 
     def __init__(self, **kwargs):
 
-        super().__init__(**kwargs)
+        super().__init__(
+            **kwargs
+        )
 
         self.name = "home"
 
@@ -483,7 +732,9 @@ class HomeScreen(Screen):
 
         with root.canvas.before:
 
-            Color(*COLOR_BG)
+            Color(
+                *COLOR_BG
+            )
 
             self.bg = Rectangle(
                 pos=root.pos,
@@ -491,41 +742,51 @@ class HomeScreen(Screen):
             )
 
         root.bind(
+
             pos=lambda *_:
-                setattr(
-                    self.bg,
-                    "pos",
-                    root.pos
-                ),
+            setattr(
+                self.bg,
+                "pos",
+                root.pos
+            ),
 
             size=lambda *_:
-                setattr(
-                    self.bg,
-                    "size",
-                    root.size
-                ),
+            setattr(
+                self.bg,
+                "size",
+                root.size
+            ),
+
         )
 
-        # -------------------------------------------------
+        # ----------------------------------------------------
         # Header
-        # -------------------------------------------------
+        # ----------------------------------------------------
 
         header = BoxLayout(
+
             orientation="vertical",
+
             size_hint_y=None,
+
             height=dp(170),
+
             padding=[
                 dp(20),
                 dp(35),
                 dp(20),
                 dp(20)
             ],
+
             spacing=dp(6),
+
         )
 
         with header.canvas.before:
 
-            Color(*COLOR_PRIMARY)
+            Color(
+                *COLOR_PRIMARY
+            )
 
             self.h_bg = Rectangle(
                 pos=header.pos,
@@ -533,53 +794,88 @@ class HomeScreen(Screen):
             )
 
         header.bind(
+
             pos=lambda *_:
-                setattr(
-                    self.h_bg,
-                    "pos",
-                    header.pos
-                ),
+            setattr(
+                self.h_bg,
+                "pos",
+                header.pos
+            ),
 
             size=lambda *_:
-                setattr(
-                    self.h_bg,
-                    "size",
-                    header.size
-                ),
+            setattr(
+                self.h_bg,
+                "size",
+                header.size
+            ),
+
         )
 
         header.add_widget(
+
             aLabel(
-                text=MSG_APP_NAME,
+
+                MSG_APP_NAME,
+
                 font_size="36sp",
+
                 bold=True,
+
                 color=(1, 1, 1, 1),
+
+                halign="right",
+
                 size_hint_y=None,
+
                 height=dp(58),
+
             )
+
         )
 
         header.add_widget(
+
             aLabel(
-                text=MSG_SUBTITLE,
+
+                MSG_SUBTITLE,
+
                 font_size="18sp",
+
                 color=COLOR_TEXT_LIGHT,
+
+                halign="right",
+
                 size_hint_y=None,
+
                 height=dp(38),
+
             )
+
         )
 
         header.add_widget(
+
             aLabel(
-                text=f"{MSG_VERSION_LABEL} {APP_VERSION}",
+
+                f"{MSG_VERSION_LABEL} {APP_VERSION}",
+
                 font_size="13sp",
+
                 color=(0.70, 0.75, 0.82, 1),
+
+                halign="right",
+
                 size_hint_y=None,
+
                 height=dp(22),
+
             )
+
         )
 
-        root.add_widget(header)
+        root.add_widget(
+            header
+        )
 
         root.add_widget(
             Widget(
@@ -588,33 +884,47 @@ class HomeScreen(Screen):
             )
         )
 
-        # -------------------------------------------------
+        # ----------------------------------------------------
         # Menu
-        # -------------------------------------------------
+        # ----------------------------------------------------
 
         menu = BoxLayout(
+
             orientation="vertical",
+
             padding=[
                 dp(24),
                 dp(10),
                 dp(24),
                 dp(10)
             ],
+
             spacing=dp(16),
+
             size_hint_y=None,
+
             height=dp(
                 3 * (68 + 16) + 20
             ),
+
         )
 
         btn_new = aButton(
-            text=MSG_NEW_DOC,
+
+            MSG_NEW_DOC,
+
             font_size="22sp",
+
             size_hint=(1, None),
+
             height=dp(68),
+
             background_normal="",
+
             background_color=COLOR_PRIMARY,
+
             color=(1, 1, 1, 1),
+
         )
 
         btn_new.bind(
@@ -622,13 +932,21 @@ class HomeScreen(Screen):
         )
 
         btn_open = aButton(
-            text=MSG_OPEN_DOC,
+
+            MSG_OPEN_DOC,
+
             font_size="22sp",
+
             size_hint=(1, None),
+
             height=dp(68),
+
             background_normal="",
+
             background_color=COLOR_SECONDARY,
+
             color=(1, 1, 1, 1),
+
         )
 
         btn_open.bind(
@@ -636,13 +954,21 @@ class HomeScreen(Screen):
         )
 
         btn_settings = aButton(
-            text=MSG_SETTINGS,
+
+            MSG_SETTINGS,
+
             font_size="22sp",
+
             size_hint=(1, None),
+
             height=dp(68),
+
             background_normal="",
+
             background_color=COLOR_TERTIARY,
+
             color=(1, 1, 1, 1),
+
         )
 
         btn_settings.bind(
@@ -653,23 +979,42 @@ class HomeScreen(Screen):
         menu.add_widget(btn_open)
         menu.add_widget(btn_settings)
 
-        root.add_widget(menu)
-
-        root.add_widget(Widget())
-
-        self.footer = aLabel(
-            text=MSG_READY,
-            font_size="15sp",
-            color=COLOR_TEXT_MUTED,
-            size_hint_y=None,
-            height=dp(50),
+        root.add_widget(
+            menu
         )
 
-        root.add_widget(self.footer)
+        root.add_widget(
+            Widget()
+        )
 
-        self.add_widget(root)
+        self.footer = aLabel(
 
-    def _on_new(self, *args):
+            MSG_READY,
+
+            font_size="15sp",
+
+            color=COLOR_TEXT_MUTED,
+
+            halign="center",
+
+            size_hint_y=None,
+
+            height=dp(50),
+
+        )
+
+        root.add_widget(
+            self.footer
+        )
+
+        self.add_widget(
+            root
+        )
+
+    def _on_new(
+        self,
+        *args
+    ):
 
         editor = self.manager.get_screen(
             "editor"
@@ -679,7 +1024,10 @@ class HomeScreen(Screen):
 
         self.manager.current = "editor"
 
-    def _on_open(self, *args):
+    def _on_open(
+        self,
+        *args
+    ):
 
         docs = self.manager.get_screen(
             "documents"
@@ -689,20 +1037,27 @@ class HomeScreen(Screen):
 
         self.manager.current = "documents"
 
-    def _on_settings(self, *args):
+    def _on_settings(
+        self,
+        *args
+    ):
 
-        self.footer.text = MSG_SETTINGS_SOON
+        self.footer.text = arabic_display(
+            MSG_SETTINGS_SOON
+        )
 
 
-# =====================================================
+# ============================================================
 # Editor Screen
-# =====================================================
+# ============================================================
 
 class EditorScreen(Screen):
 
     def __init__(self, **kwargs):
 
-        super().__init__(**kwargs)
+        super().__init__(
+            **kwargs
+        )
 
         self.name = "editor"
 
@@ -716,7 +1071,9 @@ class EditorScreen(Screen):
 
         with root.canvas.before:
 
-            Color(*COLOR_BG)
+            Color(
+                *COLOR_BG
+            )
 
             self.bg = Rectangle(
                 pos=root.pos,
@@ -724,36 +1081,49 @@ class EditorScreen(Screen):
             )
 
         root.bind(
+
             pos=lambda *_:
-                setattr(
-                    self.bg,
-                    "pos",
-                    root.pos
-                ),
+            setattr(
+                self.bg,
+                "pos",
+                root.pos
+            ),
 
             size=lambda *_:
-                setattr(
-                    self.bg,
-                    "size",
-                    root.size
-                ),
+            setattr(
+                self.bg,
+                "size",
+                root.size
+            ),
+
         )
 
-        # -------------------------------------------------
+        # ----------------------------------------------------
         # Top Bar
-        # -------------------------------------------------
+        # ----------------------------------------------------
 
         top = BoxLayout(
+
             orientation="horizontal",
+
             size_hint_y=None,
+
             height=dp(60),
-            padding=[dp(8), 0],
+
+            padding=[
+                dp(8),
+                0
+            ],
+
             spacing=dp(8),
+
         )
 
         with top.canvas.before:
 
-            Color(*COLOR_PRIMARY)
+            Color(
+                *COLOR_PRIMARY
+            )
 
             self.t_bg = Rectangle(
                 pos=top.pos,
@@ -761,91 +1131,167 @@ class EditorScreen(Screen):
             )
 
         top.bind(
+
             pos=lambda *_:
-                setattr(
-                    self.t_bg,
-                    "pos",
-                    top.pos
-                ),
+            setattr(
+                self.t_bg,
+                "pos",
+                top.pos
+            ),
 
             size=lambda *_:
-                setattr(
-                    self.t_bg,
-                    "size",
-                    top.size
-                ),
+            setattr(
+                self.t_bg,
+                "size",
+                top.size
+            ),
+
         )
 
         btn_back = aButton(
-            text=">",
+
+            ">",
+
             font_size="24sp",
+
             size_hint=(None, 1),
+
             width=dp(50),
+
             background_normal="",
-            background_color=(0, 0, 0, 0),
+
+            background_color=(
+                0,
+                0,
+                0,
+                0
+            ),
+
             color=(1, 1, 1, 1),
+
         )
 
         btn_back.bind(
             on_release=self._on_back
         )
 
-        # -------------------------------------------------
+        # ----------------------------------------------------
         # Document Title
-        # -------------------------------------------------
+        # ----------------------------------------------------
 
         self.title_input = aTextInput(
+
             text=MSG_UNTITLED,
+
             font_size="18sp",
+
             multiline=False,
-            background_color=(0, 0, 0, 0),
-            foreground_color=(1, 1, 1, 1),
-            cursor_color=(1, 1, 1, 1),
-            hint_text_color=(0.7, 0.75, 0.82, 1),
+
+            background_color=(
+                0,
+                0,
+                0,
+                0
+            ),
+
+            foreground_color=(
+                1,
+                1,
+                1,
+                1
+            ),
+
+            cursor_color=(
+                1,
+                1,
+                1,
+                1
+            ),
+
+            hint_text_color=(
+                0.7,
+                0.75,
+                0.82,
+                1
+            ),
+
             halign="right",
-            base_direction="rtl",
-            text_language="ar",
+
         )
 
-        # -------------------------------------------------
+        # ----------------------------------------------------
         # Save Button
-        # -------------------------------------------------
+        # ----------------------------------------------------
 
         btn_save = aButton(
-            text=MSG_SAVE,
+
+            MSG_SAVE,
+
             font_size="16sp",
+
             size_hint=(None, 1),
+
             width=dp(80),
+
             background_normal="",
-            background_color=(0, 0, 0, 0),
+
+            background_color=(
+                0,
+                0,
+                0,
+                0
+            ),
+
             color=(1, 1, 1, 1),
+
         )
 
         btn_save.bind(
             on_release=self._on_save
         )
 
-        top.add_widget(btn_back)
-        top.add_widget(self.title_input)
-        top.add_widget(btn_save)
+        top.add_widget(
+            btn_back
+        )
 
-        root.add_widget(top)
+        top.add_widget(
+            self.title_input
+        )
 
-        # -------------------------------------------------
+        top.add_widget(
+            btn_save
+        )
+
+        root.add_widget(
+            top
+        )
+
+        # ----------------------------------------------------
         # Toolbar
-        # -------------------------------------------------
+        # ----------------------------------------------------
 
         toolbar = BoxLayout(
+
             orientation="horizontal",
+
             size_hint_y=None,
+
             height=dp(50),
-            padding=[dp(6), dp(4)],
+
+            padding=[
+                dp(6),
+                dp(4)
+            ],
+
             spacing=dp(6),
+
         )
 
         with toolbar.canvas.before:
 
-            Color(*COLOR_TOOLBAR_BG)
+            Color(
+                *COLOR_TOOLBAR_BG
+            )
 
             self.tb_bg = Rectangle(
                 pos=toolbar.pos,
@@ -853,152 +1299,225 @@ class EditorScreen(Screen):
             )
 
         toolbar.bind(
+
             pos=lambda *_:
-                setattr(
-                    self.tb_bg,
-                    "pos",
-                    toolbar.pos
-                ),
+            setattr(
+                self.tb_bg,
+                "pos",
+                toolbar.pos
+            ),
 
             size=lambda *_:
-                setattr(
-                    self.tb_bg,
-                    "size",
-                    toolbar.size
-                ),
+            setattr(
+                self.tb_bg,
+                "size",
+                toolbar.size
+            ),
+
         )
 
         tools = [
+
             (MSG_TOOL_H1, "h1"),
+
             (MSG_TOOL_H2, "h2"),
+
             (MSG_TOOL_BODY, "body"),
+
             (MSG_TOOL_BOLD, "bold"),
+
             (MSG_TOOL_ITALIC, "italic"),
+
             (MSG_TOOL_UNDERLINE, "underline"),
+
         ]
 
         for label, action in tools:
 
             b = aButton(
-                text=label,
+
+                label,
+
                 font_size="14sp",
+
                 bold=(
                     action in
                     ("h1", "h2")
                 ),
+
                 size_hint_y=None,
+
                 height=dp(42),
+
                 size_hint_x=None,
+
                 width=dp(55),
+
                 background_normal="",
+
                 background_color=COLOR_TOOLBAR_BTN,
+
                 color=(1, 1, 1, 1),
+
             )
 
             b.bind(
+
                 on_release=
-                lambda btn, a=action:
+                lambda btn,
+                a=action:
                 self._on_tool(a)
+
             )
 
-            toolbar.add_widget(b)
+            toolbar.add_widget(
+                b
+            )
 
-        toolbar.add_widget(Label())
+        toolbar.add_widget(
+            Label()
+        )
 
-        root.add_widget(toolbar)
+        root.add_widget(
+            toolbar
+        )
 
-        # -------------------------------------------------
+        # ----------------------------------------------------
         # Editor Area
-        # -------------------------------------------------
+        # ----------------------------------------------------
 
         editor_area = BoxLayout(
+
             padding=[
                 dp(12),
                 dp(12)
             ]
+
         )
 
         with editor_area.canvas.before:
 
-            Color(*COLOR_SURFACE)
+            Color(
+                *COLOR_SURFACE
+            )
 
             self.ed_bg = Rectangle(
+
                 pos=editor_area.pos,
+
                 size=editor_area.size
+
             )
 
         editor_area.bind(
+
             pos=lambda *_:
-                setattr(
-                    self.ed_bg,
-                    "pos",
-                    editor_area.pos
-                ),
+            setattr(
+                self.ed_bg,
+                "pos",
+                editor_area.pos
+            ),
 
             size=lambda *_:
-                setattr(
-                    self.ed_bg,
-                    "size",
-                    editor_area.size
-                ),
+            setattr(
+                self.ed_bg,
+                "size",
+                editor_area.size
+            ),
+
         )
 
-        # -------------------------------------------------
+        # ----------------------------------------------------
         # Main Text Input
-        # -------------------------------------------------
+        # ----------------------------------------------------
 
         self.text_input = aTextInput(
+
             text="",
+
             font_size="17sp",
+
             foreground_color=COLOR_TEXT,
+
             background_color=COLOR_SURFACE,
+
             cursor_color=COLOR_PRIMARY,
+
             hint_text=MSG_PLACEHOLDER,
-            hint_text_color=(0.6, 0.65, 0.70, 1),
+
+            hint_text_color=(
+                0.6,
+                0.65,
+                0.70,
+                1
+            ),
+
             multiline=True,
+
             halign="right",
-            base_direction="rtl",
-            text_language="ar",
+
         )
 
         editor_area.add_widget(
             self.text_input
         )
 
-        root.add_widget(editor_area)
-
-        # -------------------------------------------------
-        # Footer
-        # -------------------------------------------------
-
-        self.footer = aLabel(
-            text="",
-            font_size="13sp",
-            color=COLOR_TEXT_MUTED,
-            size_hint_y=None,
-            height=dp(35),
+        root.add_widget(
+            editor_area
         )
 
-        root.add_widget(self.footer)
+        # ----------------------------------------------------
+        # Footer
+        # ----------------------------------------------------
 
-        self.add_widget(root)
+        self.footer = aLabel(
 
-    # =================================================
+            "",
+
+            font_size="13sp",
+
+            color=COLOR_TEXT_MUTED,
+
+            halign="right",
+
+            size_hint_y=None,
+
+            height=dp(35),
+
+        )
+
+        root.add_widget(
+            self.footer
+        )
+
+        self.add_widget(
+            root
+        )
+
+    # ========================================================
     # Document API
-    # =================================================
+    # ========================================================
 
     def new_document(self):
 
         self.doc_id = None
+
         self.doc_created = None
 
-        self.title_input.text = MSG_UNTITLED
+        self.title_input.set_raw_text(
+            MSG_UNTITLED
+        )
 
-        self.text_input.text = ""
+        self.text_input.set_raw_text(
+            ""
+        )
 
         self.footer.text = ""
 
-    def open_document(self, doc_id):
+    def open_document(
+        self,
+        doc_id
+    ):
 
         data = DocManager.load(
             doc_id
@@ -1006,7 +1525,9 @@ class EditorScreen(Screen):
 
         if not data:
 
-            self.footer.text = MSG_NOT_FOUND
+            self.footer.text = arabic_display(
+                MSG_NOT_FOUND
+            )
 
             return
 
@@ -1018,184 +1539,283 @@ class EditorScreen(Screen):
             "created"
         )
 
-        self.title_input.text = data.get(
-            "title",
-            MSG_UNTITLED
+        self.title_input.set_raw_text(
+            data.get(
+                "title",
+                MSG_UNTITLED
+            )
         )
 
-        self.text_input.text = data.get(
-            "content",
-            ""
+        self.text_input.set_raw_text(
+            data.get(
+                "content",
+                ""
+            )
         )
 
-        self.footer.text = MSG_LOADED
+        self.footer.text = arabic_display(
+            MSG_LOADED
+        )
 
-    def _on_back(self, *args):
+    def _on_back(
+        self,
+        *args
+    ):
 
         self.manager.current = "home"
 
-    def _on_save(self, *args):
+    def _on_save(
+        self,
+        *args
+    ):
 
         title = (
-            self.title_input.text.strip()
+            self.title_input.get_raw_text()
+            .strip()
             or MSG_UNTITLED
         )
 
-        content = self.text_input.text
+        content = (
+            self.text_input.get_raw_text()
+        )
 
         saved_id = DocManager.save(
+
             doc_id=self.doc_id,
+
             title=title,
+
             content=content,
+
             created=self.doc_created,
+
         )
 
         if saved_id:
 
             self.doc_id = saved_id
 
-            self.footer.text = MSG_SAVED
+            self.footer.text = arabic_display(
+                MSG_SAVED
+            )
 
         else:
 
-            self.footer.text = MSG_SAVE_FAILED
+            self.footer.text = arabic_display(
+                MSG_SAVE_FAILED
+            )
 
-    def _on_tool(self, action):
+    def _on_tool(
+        self,
+        action
+    ):
 
-        self.footer.text = action
+        self.footer.text = arabic_display(
+            action
+        )
 
 
-# =====================================================
+# ============================================================
 # Documents List Screen
-# =====================================================
+# ============================================================
 
 class DocumentsListScreen(Screen):
 
     def __init__(self, **kwargs):
 
-        super().__init__(**kwargs)
+        super().__init__(
+            **kwargs
+        )
 
         self.name = "documents"
 
         root = BoxLayout(
+
             orientation="vertical",
+
             spacing=0
+
         )
 
         with root.canvas.before:
 
-            Color(*COLOR_BG)
+            Color(
+                *COLOR_BG
+            )
 
             self.bg = Rectangle(
+
                 pos=root.pos,
+
                 size=root.size
+
             )
 
         root.bind(
+
             pos=lambda *_:
-                setattr(
-                    self.bg,
-                    "pos",
-                    root.pos
-                ),
+            setattr(
+                self.bg,
+                "pos",
+                root.pos
+            ),
 
             size=lambda *_:
-                setattr(
-                    self.bg,
-                    "size",
-                    root.size
-                ),
+            setattr(
+                self.bg,
+                "size",
+                root.size
+            ),
+
         )
 
-        # -------------------------------------------------
+        # ----------------------------------------------------
         # Top Bar
-        # -------------------------------------------------
+        # ----------------------------------------------------
 
         top = BoxLayout(
+
             orientation="horizontal",
+
             size_hint_y=None,
+
             height=dp(60),
-            padding=[dp(8), 0],
+
+            padding=[
+                dp(8),
+                0
+            ],
+
             spacing=dp(8),
+
         )
 
         with top.canvas.before:
 
-            Color(*COLOR_PRIMARY)
+            Color(
+                *COLOR_PRIMARY
+            )
 
             self.t_bg = Rectangle(
+
                 pos=top.pos,
+
                 size=top.size
+
             )
 
         top.bind(
+
             pos=lambda *_:
-                setattr(
-                    self.t_bg,
-                    "pos",
-                    top.pos
-                ),
+            setattr(
+                self.t_bg,
+                "pos",
+                top.pos
+            ),
 
             size=lambda *_:
-                setattr(
-                    self.t_bg,
-                    "size",
-                    top.size
-                ),
+            setattr(
+                self.t_bg,
+                "size",
+                top.size
+            ),
+
         )
 
         btn_back = aButton(
-            text=">",
+
+            ">",
+
             font_size="24sp",
+
             size_hint=(None, 1),
+
             width=dp(50),
+
             background_normal="",
-            background_color=(0, 0, 0, 0),
+
+            background_color=(
+                0,
+                0,
+                0,
+                0
+            ),
+
             color=(1, 1, 1, 1),
+
         )
 
         btn_back.bind(
+
             on_release=lambda *_:
             self._back()
+
         )
 
-        top.add_widget(btn_back)
+        top.add_widget(
+            btn_back
+        )
 
         top.add_widget(
+
             aLabel(
-                text=MSG_MY_DOCS,
+
+                MSG_MY_DOCS,
+
                 font_size="20sp",
+
                 color=(1, 1, 1, 1),
+
+                halign="right",
+
             )
+
         )
 
         top.add_widget(
+
             Label(
+
                 size_hint=(None, 1),
+
                 width=dp(50)
+
             )
+
         )
 
-        root.add_widget(top)
+        root.add_widget(
+            top
+        )
 
-        # -------------------------------------------------
-        # Scrollable List
-        # -------------------------------------------------
+        # ----------------------------------------------------
+        # Scroll
+        # ----------------------------------------------------
 
         self.scroll = ScrollView()
 
         self.list_layout = BoxLayout(
+
             orientation="vertical",
+
             size_hint_y=None,
+
             spacing=dp(6),
-            padding=[dp(10), dp(10)],
+
+            padding=[
+                dp(10),
+                dp(10)
+            ],
+
         )
 
         self.list_layout.bind(
+
             minimum_height=
             self.list_layout.setter(
                 "height"
             )
+
         )
 
         self.scroll.add_widget(
@@ -1206,13 +1826,16 @@ class DocumentsListScreen(Screen):
             self.scroll
         )
 
-        # -------------------------------------------------
+        # ----------------------------------------------------
         # Empty State
-        # -------------------------------------------------
+        # ----------------------------------------------------
 
         self.empty = BoxLayout(
+
             orientation="vertical",
+
             padding=dp(30)
+
         )
 
         self.empty.add_widget(
@@ -1220,24 +1843,45 @@ class DocumentsListScreen(Screen):
         )
 
         self.empty.add_widget(
+
             aLabel(
-                text=MSG_NO_DOCS,
+
+                MSG_NO_DOCS,
+
                 font_size="20sp",
+
                 bold=True,
+
                 color=COLOR_TEXT_MUTED,
+
+                halign="center",
+
                 size_hint_y=None,
+
                 height=dp(40),
+
             )
+
         )
 
         self.empty.add_widget(
+
             aLabel(
-                text=MSG_NO_DOCS_HINT,
+
+                MSG_NO_DOCS_HINT,
+
                 font_size="15sp",
+
                 color=COLOR_TEXT_MUTED,
+
+                halign="center",
+
                 size_hint_y=None,
+
                 height=dp(30),
+
             )
+
         )
 
         self.empty.add_widget(
@@ -1248,7 +1892,9 @@ class DocumentsListScreen(Screen):
             self.empty
         )
 
-        self.add_widget(root)
+        self.add_widget(
+            root
+        )
 
     def refresh(self):
 
@@ -1263,11 +1909,13 @@ class DocumentsListScreen(Screen):
         if not docs:
 
             self.scroll.opacity = 0
+
             self.empty.opacity = 1
 
             return
 
         self.scroll.opacity = 1
+
         self.empty.opacity = 0
 
         for doc in docs:
@@ -1280,128 +1928,201 @@ class DocumentsListScreen(Screen):
                 row
             )
 
-    def _make_row(self, doc):
+    def _make_row(
+        self,
+        doc
+    ):
 
         row = BoxLayout(
+
             orientation="horizontal",
+
             size_hint_y=None,
+
             height=dp(90),
+
             padding=[
                 dp(12),
                 dp(8)
             ],
+
             spacing=dp(8),
+
         )
 
         with row.canvas.before:
 
-            Color(*COLOR_SURFACE)
+            Color(
+                *COLOR_SURFACE
+            )
 
             bg = Rectangle(
+
                 pos=row.pos,
+
                 size=row.size
+
             )
 
         row.bind(
+
             pos=lambda *_:
-                setattr(
-                    bg,
-                    "pos",
-                    row.pos
-                ),
+            setattr(
+                bg,
+                "pos",
+                row.pos
+            ),
 
             size=lambda *_:
-                setattr(
-                    bg,
-                    "size",
-                    row.size
-                ),
+            setattr(
+                bg,
+                "size",
+                row.size
+            ),
+
         )
 
         info = BoxLayout(
+
             orientation="vertical",
+
             spacing=dp(4)
+
         )
 
         info.add_widget(
+
             aLabel(
-                text=doc.get(
+
+                doc.get(
                     "title",
                     MSG_UNTITLED
                 ),
+
                 font_size="18sp",
+
                 bold=True,
+
                 color=COLOR_TEXT,
+
                 halign="right",
+
                 size_hint_y=None,
+
                 height=dp(30),
+
             )
+
         )
 
         updated = (
+
             doc.get(
                 "updated",
                 ""
             )[:16]
+
             .replace(
                 "T",
                 " "
             )
+
         )
 
         info.add_widget(
+
             aLabel(
-                text=f"{MSG_UPDATED}: {updated}",
+
+                f"{MSG_UPDATED}: {updated}",
+
                 font_size="12sp",
+
                 color=COLOR_TEXT_MUTED,
+
                 halign="right",
+
                 size_hint_y=None,
+
                 height=dp(22),
+
             )
+
         )
 
         btn_open = aButton(
-            text=MSG_OPEN_BTN,
+
+            MSG_OPEN_BTN,
+
             font_size="15sp",
+
             size_hint=(None, 1),
+
             width=dp(80),
+
             background_normal="",
+
             background_color=COLOR_SECONDARY,
+
             color=(1, 1, 1, 1),
+
         )
 
         btn_open.bind(
+
             on_release=
             lambda b,
             did=doc["id"]:
             self._open(did)
+
         )
 
         btn_del = aButton(
-            text="X",
+
+            "X",
+
             font_size="16sp",
+
             bold=True,
+
             size_hint=(None, 1),
+
             width=dp(45),
+
             background_normal="",
+
             background_color=COLOR_DANGER,
+
             color=(1, 1, 1, 1),
+
         )
 
         btn_del.bind(
+
             on_release=
             lambda b,
             d=doc:
             self._confirm_delete(d)
+
         )
 
-        row.add_widget(info)
-        row.add_widget(btn_open)
-        row.add_widget(btn_del)
+        row.add_widget(
+            info
+        )
+
+        row.add_widget(
+            btn_open
+        )
+
+        row.add_widget(
+            btn_del
+        )
 
         return row
 
-    def _open(self, doc_id):
+    def _open(
+        self,
+        doc_id
+    ):
 
         editor = self.manager.get_screen(
             "editor"
@@ -1413,55 +2134,94 @@ class DocumentsListScreen(Screen):
 
         self.manager.current = "editor"
 
-    def _confirm_delete(self, doc):
+    def _confirm_delete(
+        self,
+        doc
+    ):
 
         content = BoxLayout(
+
             orientation="vertical",
+
             padding=dp(16),
+
             spacing=dp(12)
+
         )
 
         content.add_widget(
+
             aLabel(
-                text=(
+
+                (
                     f"{MSG_CONFIRM}\n\n"
                     f"{doc.get('title', MSG_UNTITLED)}"
                 ),
+
                 halign="center",
+
             )
+
         )
 
         btns = BoxLayout(
+
             orientation="horizontal",
+
             size_hint_y=None,
+
             height=dp(50),
+
             spacing=dp(10),
+
         )
 
         btn_no = aButton(
-            text=MSG_CANCEL,
+
+            MSG_CANCEL,
+
             background_normal="",
+
             background_color=COLOR_SECONDARY,
+
             color=(1, 1, 1, 1)
+
         )
 
         btn_yes = aButton(
-            text=MSG_DELETE,
+
+            MSG_DELETE,
+
             background_normal="",
+
             background_color=COLOR_DANGER,
+
             color=(1, 1, 1, 1)
+
         )
 
-        btns.add_widget(btn_no)
-        btns.add_widget(btn_yes)
+        btns.add_widget(
+            btn_no
+        )
 
-        content.add_widget(btns)
+        btns.add_widget(
+            btn_yes
+        )
+
+        content.add_widget(
+            btns
+        )
 
         popup = Popup(
+
             title=MSG_CONFIRM,
+
             content=content,
+
             size_hint=(0.85, 0.4),
+
             auto_dismiss=False,
+
         )
 
         btn_no.bind(
@@ -1469,12 +2229,14 @@ class DocumentsListScreen(Screen):
         )
 
         btn_yes.bind(
+
             on_release=
             lambda *_:
             self._do_delete(
                 doc["id"],
                 popup
             )
+
         )
 
         popup.open()
@@ -1498,9 +2260,9 @@ class DocumentsListScreen(Screen):
         self.manager.current = "home"
 
 
-# =====================================================
+# ============================================================
 # Main Application
-# =====================================================
+# ============================================================
 
 class AcademicWordEditorApp(App):
 
@@ -1521,33 +2283,47 @@ class AcademicWordEditorApp(App):
         )
 
         sm = ScreenManager(
+
             transition=SlideTransition(
+
                 duration=0.2
+
             )
+
         )
 
         sm.add_widget(
+
             HomeScreen(
                 name="home"
             )
+
         )
 
         sm.add_widget(
+
             EditorScreen(
                 name="editor"
             )
+
         )
 
         sm.add_widget(
+
             DocumentsListScreen(
                 name="documents"
             )
+
         )
 
         sm.current = "home"
 
         return sm
 
+
+# ============================================================
+# Application Entry Point
+# ============================================================
 
 if __name__ == "__main__":
 
