@@ -1,60 +1,101 @@
+# main.py
 from kivy.app import App
-from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.label import Label
-from kivy.uix.button import Button
+from kivy.uix.screenmanager import ScreenManager, Screen, SlideTransition
 from kivy.core.window import Window
+
+from utils.constants import (
+    APP_NAME, SCREEN_HOME, SCREEN_EDITOR,
+    COLOR_BG,
+)
+from screens.home import HomeScreen
+
+
+class HomeScreenWrapper(Screen):
+    """Wrapper to make HomeScreen compatible with ScreenManager."""
+
+    def __init__(self, app_ref=None, **kwargs):
+        super().__init__(**kwargs)
+        self.app_ref = app_ref
+        self.add_widget(HomeScreen(
+            on_new_doc=self._new_doc,
+            on_open_doc=self._open_doc,
+            on_settings=self._settings,
+        ))
+
+    def _new_doc(self):
+        if self.app_ref:
+            self.app_ref.go_to_editor()
+
+    def _open_doc(self):
+        if self.app_ref:
+            self.app_ref.show_message("Open document - coming soon")
+
+    def _settings(self):
+        if self.app_ref:
+            self.app_ref.show_message("Settings - coming soon")
 
 
 class AcademicWordEditorApp(App):
+    """Main application class."""
 
     def build(self):
-        self.title = "Academic Word Editor"
+        self.title = APP_NAME
+        Window.clearcolor = COLOR_BG
 
-        Window.clearcolor = (0.96, 0.97, 0.98, 1)
+        # Screen manager
+        self.sm = ScreenManager(transition=SlideTransition())
+        self.sm.add_widget(HomeScreenWrapper(
+            app_ref=self,
+            name=SCREEN_HOME,
+        ))
 
-        root = BoxLayout(
-            orientation="vertical",
-            padding=30,
-            spacing=20
-        )
+        return self.sm
 
-        title = Label(
-            text="Academic Word Editor",
-            font_size="28sp",
-            bold=True,
-            size_hint_y=None,
-            height=60,
-            color=(0.12, 0.20, 0.35, 1)
-        )
+    def go_to_editor(self):
+        """Navigate to editor screen."""
+        self.show_message("Editor screen - next step")
 
-        subtitle = Label(
-            text="Professional Academic Document Editor",
-            font_size="17sp",
-            size_hint_y=None,
-            height=50,
-            color=(0.25, 0.35, 0.45, 1)
-        )
+    def go_to_home(self):
+        """Navigate to home screen."""
+        self.sm.current = SCREEN_HOME
 
-        new_button = Button(
-            text="New Document",
-            font_size="18sp",
-            size_hint_y=None,
-            height=55
-        )
+    def show_message(self, text):
+        """Display a toast message."""
+        try:
+            from kivy.uix.label import Label
+            from kivy.clock import Clock
+            from kivy.uix.floatlayout import FloatLayout
+            from kivy.graphics import Color, RoundedRectangle
 
-        open_button = Button(
-            text="Open Document",
-            font_size="18sp",
-            size_hint_y=None,
-            height=55
-        )
+            overlay = FloatLayout()
+            lbl = Label(
+                text=text,
+                font_size="15sp",
+                color=(1, 1, 1, 1),
+                size_hint=(None, None),
+                size=(300, 60),
+                pos_hint={"center_x": 0.5, "center_y": 0.15},
+            )
+            with lbl.canvas.before:
+                Color(0.15, 0.15, 0.15, 0.9)
+                RoundedRectangle(
+                    pos=lbl.pos, size=lbl.size, radius=[15]
+                )
+            lbl.bind(
+                pos=lambda w, v: setattr(
+                    w.canvas.before.children[-1], 'pos', v
+                )
+            )
 
-        root.add_widget(title)
-        root.add_widget(subtitle)
-        root.add_widget(new_button)
-        root.add_widget(open_button)
+            Window.add_widget(overlay)
+            overlay.add_widget(lbl)
 
-        return root
+            def remove_overlay(dt):
+                Window.remove_widget(overlay)
+
+            Clock.schedule_once(remove_overlay, 2.0)
+        except Exception as e:
+            print(f"Toast error: {e}")
 
 
 if __name__ == "__main__":
