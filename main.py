@@ -14,14 +14,46 @@ from kivy.uix.screenmanager import ScreenManager, Screen, SlideTransition
 from kivy.uix.popup import Popup
 from kivy.graphics import Color, Rectangle
 from kivy.core.window import Window
+from kivy.core.text import LabelBase
+from kivy.resources import resource_find
 from kivy.metrics import dp
 
 
 # =====================================================
-# Configuration (inline, no utils.constants dependency)
+# Register Arabic Font (must be done before any widget)
 # =====================================================
-APP_NAME = "Academic Word Editor"
-APP_VERSION = "1.3.0"
+FONT_ARABIC = "NotoNaskh"
+FONT_PATH = "assets/fonts/NotoNaskhArabic-Regular.ttf"
+FONT_LOADED = False
+
+try:
+    real_path = resource_find(FONT_PATH)
+    print(f"[FONT] resource_find: {real_path}")
+    if real_path:
+        LabelBase.register(
+            name=FONT_ARABIC,
+            fn_regular=real_path,
+        )
+        FONT_LOADED = True
+        print(f"[FONT] Registered OK: {FONT_ARABIC}")
+    else:
+        print(f"[FONT] NOT FOUND: {FONT_PATH}")
+except Exception as e:
+    print(f"[FONT] ERROR: {e}")
+
+
+def afont():
+    """Return font_name kwarg dict for Arabic text (safe)."""
+    if FONT_LOADED:
+        return {"font_name": FONT_ARABIC}
+    return {}
+
+
+# =====================================================
+# Configuration
+# =====================================================
+APP_NAME = "محرر أكاديمي"
+APP_VERSION = "2.0.0"
 
 COLOR_PRIMARY = (0.12, 0.20, 0.35, 1)
 COLOR_SECONDARY = (0.20, 0.40, 0.60, 1)
@@ -37,23 +69,60 @@ COLOR_TOOLBAR_BTN = (0.30, 0.40, 0.50, 1)
 
 
 # =====================================================
-# Storage
+# Arabic strings
 # =====================================================
-def get_storage_dir():
-    """Get the best storage directory for documents."""
-    candidates = []
+MSG_APP_NAME = "محرر أكاديمي"
+MSG_SUBTITLE = "محرر المستندات الأكاديمية"
+MSG_VERSION_LABEL = "الإصدار"
 
-    # 1) Kivy user_data_dir (works on Android and desktop)
+MSG_NEW_DOC = "مستند جديد"
+MSG_OPEN_DOC = "فتح مستند"
+MSG_SETTINGS = "الإعدادات"
+MSG_READY = "جاهز"
+MSG_SETTINGS_SOON = "الإعدادات - قريبًا"
+
+MSG_MY_DOCS = "مستنداتي"
+MSG_NO_DOCS = "لا توجد مستندات بعد"
+MSG_NO_DOCS_HINT = "اضغط \"مستند جديد\" لإنشاء أول مستند"
+
+MSG_OPEN_BTN = "فتح"
+MSG_DELETE = "حذف"
+MSG_CANCEL = "إلغاء"
+MSG_CONFIRM = "تأكيد الحذف"
+
+MSG_TITLE = "العنوان"
+MSG_UNTITLED = "بدون عنوان"
+MSG_PLACEHOLDER = "ابدأ الكتابة هنا..."
+MSG_SAVE = "حفظ"
+MSG_SAVE_FAILED = "فشل الحفظ"
+MSG_SAVED = "تم حفظ المستند"
+MSG_LOADED = "تم التحميل"
+MSG_NOT_FOUND = "المستند غير موجود"
+MSG_UPDATED = "آخر تحديث"
+
+MSG_TOOL_H1 = "ع1"
+MSG_TOOL_H2 = "ع2"
+MSG_TOOL_BODY = "نص"
+MSG_TOOL_BOLD = "B"
+MSG_TOOL_ITALIC = "I"
+MSG_TOOL_UNDERLINE = "U"
+
+
+# =====================================================
+# Storage (uses user_data_dir, works on Android)
+# =====================================================
+STORAGE_DIR = None
+
+
+def get_storage_dir():
+    candidates = []
     try:
         if App.get_running_app():
             base = App.get_running_app().user_data_dir
             candidates.append(os.path.join(base, "documents"))
     except Exception:
         pass
-
-    # 2) Local relative directory (for desktop testing)
     candidates.append(os.path.join("data", "documents"))
-
     for path in candidates:
         try:
             os.makedirs(path, exist_ok=True)
@@ -61,11 +130,7 @@ def get_storage_dir():
             return path
         except Exception:
             continue
-
     return candidates[-1]
-
-
-STORAGE_DIR = None  # will be set in App.build()
 
 
 def set_storage_dir():
@@ -75,7 +140,7 @@ def set_storage_dir():
 
 
 # =====================================================
-# Document Manager (inline)
+# DocManager
 # =====================================================
 class DocManager:
 
@@ -95,7 +160,7 @@ class DocManager:
 
         data = {
             "id": doc_id,
-            "title": title or "Untitled",
+            "title": title or MSG_UNTITLED,
             "content": content or "",
             "created": created,
             "updated": datetime.now().isoformat(),
@@ -151,7 +216,7 @@ class DocManager:
                         data = json.load(f)
                     docs.append({
                         "id": data.get("id", fname[:-5]),
-                        "title": data.get("title", "Untitled"),
+                        "title": data.get("title", MSG_UNTITLED),
                         "created": data.get("created", ""),
                         "updated": data.get("updated", ""),
                     })
@@ -161,6 +226,24 @@ class DocManager:
             print(f"[LIST ERROR] {e}")
         docs.sort(key=lambda d: d.get("updated", ""), reverse=True)
         return docs
+
+
+# =====================================================
+# Helper: Arabic Label
+# =====================================================
+def aLabel(text="", **kwargs):
+    """Create a Label with the Arabic font applied."""
+    return Label(text=text, **afont(), **kwargs)
+
+
+def aButton(text="", **kwargs):
+    """Create a Button with the Arabic font applied."""
+    return Button(text=text, **afont(), **kwargs)
+
+
+def aTextInput(text="", **kwargs):
+    """Create a TextInput with the Arabic font applied."""
+    return TextInput(text=text, **afont(), **kwargs)
 
 
 # =====================================================
@@ -186,7 +269,7 @@ class HomeScreen(Screen):
         header = BoxLayout(
             orientation="vertical",
             size_hint_y=None,
-            height=dp(160),
+            height=dp(170),
             padding=[dp(20), dp(35), dp(20), dp(20)],
             spacing=dp(6),
         )
@@ -198,19 +281,19 @@ class HomeScreen(Screen):
             size=lambda *_: setattr(self.h_bg, "size", header.size),
         )
 
-        header.add_widget(Label(
-            text="Academic Word",
-            font_size="32sp", bold=True,
+        header.add_widget(aLabel(
+            text=MSG_APP_NAME,
+            font_size="34sp", bold=True,
             color=(1, 1, 1, 1),
-            size_hint_y=None, height=dp(50),
+            size_hint_y=None, height=dp(55),
         ))
-        header.add_widget(Label(
-            text="Academic Document Editor",
+        header.add_widget(aLabel(
+            text=MSG_SUBTITLE,
             font_size="18sp", color=COLOR_TEXT_LIGHT,
             size_hint_y=None, height=dp(38),
         ))
-        header.add_widget(Label(
-            text=f"Version {APP_VERSION}",
+        header.add_widget(aLabel(
+            text=f"{MSG_VERSION_LABEL} {APP_VERSION}",
             font_size="13sp", color=(0.70, 0.75, 0.82, 1),
             size_hint_y=None, height=dp(22),
         ))
@@ -227,9 +310,9 @@ class HomeScreen(Screen):
             height=dp(3 * (68 + 16) + 20),
         )
 
-        btn_new = Button(
-            text="New Document",
-            font_size="20sp",
+        btn_new = aButton(
+            text=MSG_NEW_DOC,
+            font_size="22sp",
             size_hint=(1, None), height=dp(68),
             background_normal="",
             background_color=COLOR_PRIMARY,
@@ -237,9 +320,9 @@ class HomeScreen(Screen):
         )
         btn_new.bind(on_release=self._on_new)
 
-        btn_open = Button(
-            text="Open Document",
-            font_size="20sp",
+        btn_open = aButton(
+            text=MSG_OPEN_DOC,
+            font_size="22sp",
             size_hint=(1, None), height=dp(68),
             background_normal="",
             background_color=COLOR_SECONDARY,
@@ -247,9 +330,9 @@ class HomeScreen(Screen):
         )
         btn_open.bind(on_release=self._on_open)
 
-        btn_settings = Button(
-            text="Settings",
-            font_size="20sp",
+        btn_settings = aButton(
+            text=MSG_SETTINGS,
+            font_size="22sp",
             size_hint=(1, None), height=dp(68),
             background_normal="",
             background_color=COLOR_TERTIARY,
@@ -264,9 +347,9 @@ class HomeScreen(Screen):
         root.add_widget(menu)
         root.add_widget(Widget())
 
-        self.footer = Label(
-            text="Ready",
-            font_size="14sp", color=COLOR_TEXT_MUTED,
+        self.footer = aLabel(
+            text=MSG_READY,
+            font_size="15sp", color=COLOR_TEXT_MUTED,
             size_hint_y=None, height=dp(50),
         )
         root.add_widget(self.footer)
@@ -284,7 +367,7 @@ class HomeScreen(Screen):
         self.manager.current = "documents"
 
     def _on_settings(self, *args):
-        self.footer.text = "Settings - coming soon"
+        self.footer.text = MSG_SETTINGS_SOON
 
 
 # =====================================================
@@ -322,24 +405,26 @@ class EditorScreen(Screen):
             size=lambda *_: setattr(self.t_bg, "size", top.size),
         )
 
-        btn_back = Button(
-            text="<", font_size="24sp",
+        btn_back = aButton(
+            text=">", font_size="24sp",
             size_hint=(None, 1), width=dp(50),
             background_normal="", background_color=(0, 0, 0, 0),
             color=(1, 1, 1, 1),
         )
         btn_back.bind(on_release=self._on_back)
 
-        self.title_input = TextInput(
-            text="New Document", hint_text="Title",
+        self.title_input = aTextInput(
+            text=MSG_UNTITLED, hint_text=MSG_TITLE,
             font_size="18sp", multiline=False,
             background_color=(0, 0, 0, 0),
             foreground_color=(1, 1, 1, 1),
             cursor_color=(1, 1, 1, 1),
+            hint_text_color=(0.7, 0.75, 0.82, 1),
+            halign="right",
         )
 
-        btn_save = Button(
-            text="Save", font_size="16sp",
+        btn_save = aButton(
+            text=MSG_SAVE, font_size="16sp",
             size_hint=(None, 1), width=dp(80),
             background_normal="", background_color=(0, 0, 0, 0),
             color=(1, 1, 1, 1),
@@ -366,13 +451,13 @@ class EditorScreen(Screen):
         )
 
         for label, action in [
-            ("H1", "h1"), ("H2", "h2"), ("Body", "body"),
-            ("B", "bold"), ("I", "italic"), ("U", "underline"),
+            (MSG_TOOL_H1, "h1"), (MSG_TOOL_H2, "h2"), (MSG_TOOL_BODY, "body"),
+            (MSG_TOOL_BOLD, "bold"), (MSG_TOOL_ITALIC, "italic"), (MSG_TOOL_UNDERLINE, "underline"),
         ]:
-            b = Button(
-                text=label, font_size="14sp",
+            b = aButton(
+                text=label, font_size="14sp", bold=(action in ("h1", "h2")),
                 size_hint_y=None, height=dp(42),
-                size_hint_x=None, width=dp(50),
+                size_hint_x=None, width=dp(55),
                 background_normal="",
                 background_color=COLOR_TOOLBAR_BTN,
                 color=(1, 1, 1, 1),
@@ -392,19 +477,20 @@ class EditorScreen(Screen):
             size=lambda *_: setattr(self.ed_bg, "size", editor_area.size),
         )
 
-        self.text_input = TextInput(
-            text="", hint_text="Start writing here...",
-            font_size="16sp",
+        self.text_input = aTextInput(
+            text="", hint_text=MSG_PLACEHOLDER,
+            font_size="17sp",
             foreground_color=COLOR_TEXT,
             background_color=COLOR_SURFACE,
             cursor_color=COLOR_PRIMARY,
+            hint_text_color=(0.6, 0.65, 0.70, 1),
             multiline=True,
         )
         editor_area.add_widget(self.text_input)
         root.add_widget(editor_area)
 
         # Footer
-        self.footer = Label(
+        self.footer = aLabel(
             text="", font_size="13sp",
             color=COLOR_TEXT_MUTED,
             size_hint_y=None, height=dp(35),
@@ -417,26 +503,26 @@ class EditorScreen(Screen):
     def new_document(self):
         self.doc_id = None
         self.doc_created = None
-        self.title_input.text = "New Document"
+        self.title_input.text = MSG_UNTITLED
         self.text_input.text = ""
         self.footer.text = ""
 
     def open_document(self, doc_id):
         data = DocManager.load(doc_id)
         if not data:
-            self.footer.text = "Document not found"
+            self.footer.text = MSG_NOT_FOUND
             return
         self.doc_id = data.get("id")
         self.doc_created = data.get("created")
-        self.title_input.text = data.get("title", "Untitled")
+        self.title_input.text = data.get("title", MSG_UNTITLED)
         self.text_input.text = data.get("content", "")
-        self.footer.text = f"Loaded: {self.title_input.text}"
+        self.footer.text = f"{MSG_LOADED}: {self.title_input.text}"
 
     def _on_back(self, *args):
         self.manager.current = "home"
 
     def _on_save(self, *args):
-        title = self.title_input.text.strip() or "Untitled"
+        title = self.title_input.text.strip() or MSG_UNTITLED
         content = self.text_input.text
         saved_id = DocManager.save(
             doc_id=self.doc_id,
@@ -446,12 +532,12 @@ class EditorScreen(Screen):
         )
         if saved_id:
             self.doc_id = saved_id
-            self.footer.text = "Document saved"
+            self.footer.text = MSG_SAVED
         else:
-            self.footer.text = "Save failed"
+            self.footer.text = MSG_SAVE_FAILED
 
     def _on_tool(self, action):
-        self.footer.text = f"Action: {action}"
+        self.footer.text = f"{action}"
 
 
 # =====================================================
@@ -487,8 +573,8 @@ class DocumentsListScreen(Screen):
             size=lambda *_: setattr(self.t_bg, "size", top.size),
         )
 
-        btn_back = Button(
-            text="<", font_size="24sp",
+        btn_back = aButton(
+            text=">", font_size="24sp",
             size_hint=(None, 1), width=dp(50),
             background_normal="", background_color=(0, 0, 0, 0),
             color=(1, 1, 1, 1),
@@ -496,12 +582,11 @@ class DocumentsListScreen(Screen):
         btn_back.bind(on_release=lambda *_: self._back())
 
         top.add_widget(btn_back)
-        top.add_widget(Label(
-            text="My Documents",
-            font_size="18sp", color=(1, 1, 1, 1),
+        top.add_widget(aLabel(
+            text=MSG_MY_DOCS,
+            font_size="20sp", color=(1, 1, 1, 1),
         ))
         top.add_widget(Label(size_hint=(None, 1), width=dp(50)))
-
         root.add_widget(top)
 
         # Scrollable list
@@ -519,12 +604,21 @@ class DocumentsListScreen(Screen):
         root.add_widget(self.scroll)
 
         # Empty state
-        self.empty = Label(
-            text="No documents yet\n\nTap 'New Document' to create one",
-            font_size="16sp",
+        self.empty = BoxLayout(orientation="vertical", padding=dp(30))
+        self.empty.add_widget(Widget())
+        self.empty.add_widget(aLabel(
+            text=MSG_NO_DOCS,
+            font_size="20sp", bold=True,
             color=COLOR_TEXT_MUTED,
-            halign="center",
-        )
+            size_hint_y=None, height=dp(40),
+        ))
+        self.empty.add_widget(aLabel(
+            text=MSG_NO_DOCS_HINT,
+            font_size="15sp",
+            color=COLOR_TEXT_MUTED,
+            size_hint_y=None, height=dp(30),
+        ))
+        self.empty.add_widget(Widget())
         root.add_widget(self.empty)
 
         self.add_widget(root)
@@ -549,9 +643,9 @@ class DocumentsListScreen(Screen):
     def _make_row(self, doc):
         row = BoxLayout(
             orientation="horizontal",
-            size_hint_y=None, height=dp(80),
+            size_hint_y=None, height=dp(90),
             padding=[dp(12), dp(8)],
-            spacing=dp(10),
+            spacing=dp(8),
         )
         with row.canvas.before:
             Color(*COLOR_SURFACE)
@@ -562,25 +656,24 @@ class DocumentsListScreen(Screen):
         )
 
         info = BoxLayout(orientation="vertical", spacing=dp(4))
-        info.add_widget(Label(
-            text=doc.get("title", "Untitled"),
-            font_size="17sp", bold=True,
-            color=COLOR_TEXT, halign="left",
-            size_hint_y=None, height=dp(28),
+        info.add_widget(aLabel(
+            text=doc.get("title", MSG_UNTITLED),
+            font_size="18sp", bold=True,
+            color=COLOR_TEXT, halign="right",
+            size_hint_y=None, height=dp(30),
         ))
         updated = doc.get("updated", "")[:16].replace("T", " ")
-        info.add_widget(Label(
-            text=f"Updated: {updated}",
+        info.add_widget(aLabel(
+            text=f"{MSG_UPDATED}: {updated}",
             font_size="12sp", color=COLOR_TEXT_MUTED,
-            halign="left",
+            halign="right",
             size_hint_y=None, height=dp(22),
         ))
 
-        # Buttons
-        btn_open = Button(
-            text="Open",
-            font_size="14sp",
-            size_hint=(None, 1), width=dp(70),
+        btn_open = aButton(
+            text=MSG_OPEN_BTN,
+            font_size="15sp",
+            size_hint=(None, 1), width=dp(80),
             background_normal="",
             background_color=COLOR_SECONDARY,
             color=(1, 1, 1, 1),
@@ -589,7 +682,7 @@ class DocumentsListScreen(Screen):
             on_release=lambda b, did=doc["id"]: self._open(did)
         )
 
-        btn_del = Button(
+        btn_del = aButton(
             text="X",
             font_size="16sp", bold=True,
             size_hint=(None, 1), width=dp(45),
@@ -613,24 +706,24 @@ class DocumentsListScreen(Screen):
 
     def _confirm_delete(self, doc):
         content = BoxLayout(orientation="vertical", padding=dp(16), spacing=dp(12))
-        content.add_widget(Label(
-            text=f"Delete:\n\n{doc.get('title', 'Untitled')}?",
+        content.add_widget(aLabel(
+            text=f"{MSG_CONFIRM}\n\n{doc.get('title', MSG_UNTITLED)}",
             halign="center",
         ))
         btns = BoxLayout(
             orientation="horizontal", size_hint_y=None,
             height=dp(50), spacing=dp(10),
         )
-        btn_no = Button(text="Cancel", background_normal="",
-                        background_color=COLOR_SECONDARY)
-        btn_yes = Button(text="Delete", background_normal="",
-                         background_color=COLOR_DANGER)
+        btn_no = aButton(text=MSG_CANCEL, background_normal="",
+                         background_color=COLOR_SECONDARY, color=(1, 1, 1, 1))
+        btn_yes = aButton(text=MSG_DELETE, background_normal="",
+                          background_color=COLOR_DANGER, color=(1, 1, 1, 1))
         btns.add_widget(btn_no)
         btns.add_widget(btn_yes)
         content.add_widget(btns)
 
         popup = Popup(
-            title="Confirm Delete",
+            title=MSG_CONFIRM,
             content=content,
             size_hint=(0.85, 0.4),
             auto_dismiss=False,
@@ -657,9 +750,10 @@ class AcademicWordEditorApp(App):
         self.title = APP_NAME
         Window.clearcolor = COLOR_BG
 
-        # Set storage dir NOW (after app is running)
+        # Set storage dir (after app is running)
         set_storage_dir()
         print(f"[APP] Storage: {STORAGE_DIR}")
+        print(f"[APP] Font loaded: {FONT_LOADED}")
 
         sm = ScreenManager(transition=SlideTransition(duration=0.2))
         sm.add_widget(HomeScreen(name="home"))
