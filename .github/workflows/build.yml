@@ -17,6 +17,12 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -24,10 +30,10 @@ jobs:
             git \
             zip \
             unzip \
-            openjdk-17-jdk \
             autoconf \
             automake \
             libtool \
+            libltdl-dev \
             pkg-config \
             m4 \
             cmake \
@@ -43,11 +49,12 @@ jobs:
           python --version
           pip --version
           java -version
+          echo "JAVA_HOME=$JAVA_HOME"
 
-      - name: Install Buildozer
+      - name: Install Buildozer and compatible tools
         run: |
           python -m pip install --upgrade pip
-          python -m pip install "cython<3.0"
+          python -m pip install "cython==0.29.34"
           python -m pip install buildozer
 
       - name: Cache Buildozer
@@ -56,9 +63,9 @@ jobs:
           path: |
             ~/.buildozer
             ~/.cache/pip
-          key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+          key: buildozer-${{ runner.os }}-p4a-2024.01.21-${{ hashFiles('buildozer.spec') }}
           restore-keys: |
-            buildozer-${{ runner.os }}-
+            buildozer-${{ runner.os }}-p4a-2024.01.21-
 
       - name: Build Android APK
         run: |
