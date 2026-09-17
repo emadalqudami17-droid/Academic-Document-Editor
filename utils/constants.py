@@ -4,21 +4,23 @@
 # Application Info
 # =====================================================
 APP_NAME = "Academic Word Editor"
-APP_VERSION = "0.2.0"
-APP_AUTHOR = "Academic"
+APP_VERSION = "0.2.1"
 
 # =====================================================
 # Colors (RGBA 0.0 - 1.0)
 # =====================================================
-COLOR_PRIMARY = (0.12, 0.20, 0.35, 1)      # Dark navy
-COLOR_ACCENT = (0.20, 0.45, 0.70, 1)       # Blue accent
-COLOR_BG = (0.96, 0.97, 0.98, 1)           # Light gray
-COLOR_SURFACE = (1, 1, 1, 1)               # White
-COLOR_TEXT = (0.15, 0.15, 0.15, 1)         # Almost black
-COLOR_TEXT_MUTED = (0.45, 0.50, 0.55, 1)   # Gray
-COLOR_SUCCESS = (0.20, 0.70, 0.35, 1)      # Green
-COLOR_WARNING = (0.90, 0.60, 0.15, 1)      # Orange
-COLOR_DANGER = (0.85, 0.25, 0.25, 1)       # Red
+COLOR_PRIMARY = (0.12, 0.20, 0.35, 1)
+COLOR_ACCENT = (0.20, 0.45, 0.70, 1)
+COLOR_BG = (0.96, 0.97, 0.98, 1)
+COLOR_SURFACE = (1, 1, 1, 1)
+COLOR_TEXT = (0.15, 0.15, 0.15, 1)
+COLOR_TEXT_MUTED = (0.45, 0.50, 0.55, 1)
+
+# =====================================================
+# Fonts
+# =====================================================
+FONT_ARABIC = "NotoNaskh"
+FONT_ARABIC_PATH = "assets/fonts/NotoNaskhArabic-Regular.ttf"
 
 # =====================================================
 # Screen Names
@@ -28,33 +30,18 @@ SCREEN_EDITOR = "editor"
 SCREEN_SETTINGS = "settings"
 
 # =====================================================
-# Fonts
+# Messages (Arabic)
 # =====================================================
-FONT_FAMILY = "Roboto"
-FONT_SIZE_TITLE = "28sp"
-FONT_SIZE_HEADING = "22sp"
-FONT_SIZE_BODY = "16sp"
-FONT_SIZE_SMALL = "14sp"
+MSG_NEW_DOC = "مستند جديد"
+MSG_OPEN_DOC = "فتح مستند"
+MSG_SETTINGS = "الإعدادات"
+MSG_WELCOME = "مرحبًا بك في المحرر الأكاديمي"
+MSG_EDITOR_COMING = "المحرر - الخطوة القادمة"
+MSG_OPEN_COMING = "قريبًا"
+MSG_SETTINGS_COMING = "قريبًا"
 
 # =====================================================
-# Layout
+# Document Defaults
 # =====================================================
-PADDING_SMALL = 8
-PADDING_MEDIUM = 16
-PADDING_LARGE = 24
-SPACING_SMALL = 8
-SPACING_MEDIUM = 16
-BUTTON_HEIGHT = 55
-
-# =====================================================
-# Default Document Content
-# =====================================================
-DEFAULT_DOC_TITLE = "Untitled Document"
-DEFAULT_DOC_INTRO = "Start writing here..."
-
-# =====================================================
-# Messages
-# =====================================================
-MSG_WELCOME = "Welcome to Academic Word Editor"
-MSG_SAVED = "Document saved successfully"
-MSG_EMPTY = "No documents found"
+DEFAULT_DOC_TITLE = "مستند بدون عنوان"
+DEFAULT_DOC_INTRO = "ابدأ الكتابة هنا..."
