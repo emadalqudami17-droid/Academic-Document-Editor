@@ -3,18 +3,24 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.uix.widget import Widget
+from kivy.uix.screenmanager import Screen
 from kivy.graphics import Color, Rectangle
 from kivy.metrics import dp
 
 from utils.constants import (
-    APP_VERSION, FONT_ARABIC,
-    COLOR_PRIMARY, COLOR_BG, COLOR_TEXT_MUTED,
-    MSG_NEW_DOC, MSG_OPEN_DOC, MSG_SETTINGS, MSG_WELCOME,
+    APP_VERSION, MSG_TITLE, MSG_SUBTITLE, MSG_NEW_DOC,
+    MSG_OPEN_DOC, MSG_SETTINGS, MSG_READY,
+    COLOR_PRIMARY, COLOR_SECONDARY, COLOR_TERTIARY,
+    COLOR_BG, COLOR_TEXT_LIGHT, COLOR_TEXT_MUTED,
+    BUTTON_HEIGHT, SPACING_BUTTON,
 )
 
 
-class TopBar(BoxLayout):
-    """Header with app name + Arabic subtitle."""
+# =====================================================
+# Header
+# =====================================================
+class Header(BoxLayout):
+    """Top header bar."""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -26,147 +32,146 @@ class TopBar(BoxLayout):
 
         with self.canvas.before:
             Color(*COLOR_PRIMARY)
-            self.bg_rect = Rectangle(pos=self.pos, size=self.size)
+            self.bg = Rectangle(pos=self.pos, size=self.size)
         self.bind(pos=self._update_bg, size=self._update_bg)
 
-        title = Label(
-            text="Academic Word",
+        self.add_widget(Label(
+            text=MSG_TITLE,
             font_size="32sp",
             bold=True,
             color=(1, 1, 1, 1),
             size_hint_y=None,
             height=dp(50),
-        )
+        ))
 
-        subtitle = Label(
-            text="محرر أكاديمي احترافي",
-            font_name=FONT_ARABIC,
-            font_size="20sp",
-            color=(0.90, 0.93, 0.97, 1),
+        self.add_widget(Label(
+            text=MSG_SUBTITLE,
+            font_size="18sp",
+            color=COLOR_TEXT_LIGHT,
             size_hint_y=None,
             height=dp(38),
-        )
+        ))
 
-        version = Label(
-            text=f"v{APP_VERSION}",
+        self.add_widget(Label(
+            text=f"Version {APP_VERSION}",
             font_size="13sp",
             color=(0.70, 0.75, 0.82, 1),
             size_hint_y=None,
             height=dp(22),
-        )
-
-        self.add_widget(title)
-        self.add_widget(subtitle)
-        self.add_widget(version)
+        ))
 
     def _update_bg(self, *args):
-        self.bg_rect.pos = self.pos
-        self.bg_rect.size = self.size
+        self.bg.pos = self.pos
+        self.bg.size = self.size
 
 
+# =====================================================
+# Menu Button
+# =====================================================
 class MenuButton(Button):
-    """Styled menu button with Arabic text."""
+    """Styled menu button."""
 
-    def __init__(self, text="", color=None, callback=None, **kwargs):
+    def __init__(self, text="", color=None, **kwargs):
         super().__init__(**kwargs)
         self.text = text
-        self.font_name = FONT_ARABIC
-        self.font_size = "22sp"
-        self.size_hint_y = None
-        self.height = dp(70)
+        self.font_size = "20sp"
+        self.size_hint = (1, None)
+        self.height = dp(BUTTON_HEIGHT)
         self.background_normal = ""
         self.background_down = ""
-        self.background_color = color or (0.20, 0.45, 0.70, 1)
+        self.background_color = color or COLOR_SECONDARY
         self.color = (1, 1, 1, 1)
 
-        if callback:
-            self.bind(on_release=lambda *_: callback())
 
+# =====================================================
+# Home Screen
+# =====================================================
+class HomeScreen(Screen):
+    """Home screen with menu."""
 
-class HomeScreen(BoxLayout):
-    """Home screen with Arabic interface."""
-
-    def __init__(self, on_new_doc=None, on_open_doc=None,
-                 on_settings=None, **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.orientation = "vertical"
-        self.padding = 0
-        self.spacing = 0
+        self.name = "home"
 
-        with self.canvas.before:
+        # Root layout
+        root = BoxLayout(
+            orientation="vertical",
+            padding=0,
+            spacing=0,
+        )
+
+        # Background
+        with root.canvas.before:
             Color(*COLOR_BG)
-            self.bg_rect = Rectangle(pos=self.pos, size=self.size)
-        self.bind(pos=self._update_bg, size=self._update_bg)
+            self.bg = Rectangle(pos=root.pos, size=root.size)
+        root.bind(
+            pos=lambda *_: setattr(self.bg, "pos", root.pos),
+            size=lambda *_: setattr(self.bg, "size", root.size),
+        )
 
-        self._on_new_doc = on_new_doc
-        self._on_open_doc = on_open_doc
-        self._on_settings = on_settings
+        # Header
+        root.add_widget(Header())
+        root.add_widget(Widget(size_hint_y=None, height=dp(30)))
 
-        self.add_widget(TopBar())
-        self.add_widget(Widget(size_hint_y=None, height=dp(30)))
-
+        # Menu with proper padding
         menu = BoxLayout(
             orientation="vertical",
             padding=[dp(24), dp(10), dp(24), dp(10)],
-            spacing=dp(18),
+            spacing=dp(SPACING_BUTTON),
+            size_hint_y=None,
+            height=dp(3 * (BUTTON_HEIGHT + SPACING_BUTTON) + 20),
         )
 
-        menu.add_widget(MenuButton(
+        btn_new = MenuButton(
             text=MSG_NEW_DOC,
-            color=(0.12, 0.20, 0.35, 1),
-            callback=self._handle_new,
-        ))
+            color=COLOR_PRIMARY,
+        )
+        btn_new.bind(on_release=self._on_new)
 
-        menu.add_widget(MenuButton(
+        btn_open = MenuButton(
             text=MSG_OPEN_DOC,
-            color=(0.20, 0.40, 0.60, 1),
-            callback=self._handle_open,
-        ))
+            color=COLOR_SECONDARY,
+        )
+        btn_open.bind(on_release=self._on_open)
 
-        menu.add_widget(MenuButton(
+        btn_settings = MenuButton(
             text=MSG_SETTINGS,
-            color=(0.30, 0.50, 0.70, 1),
-            callback=self._handle_settings,
-        ))
+            color=COLOR_TERTIARY,
+        )
+        btn_settings.bind(on_release=self._on_settings)
 
-        self.add_widget(menu)
-        self.add_widget(Widget())
+        menu.add_widget(btn_new)
+        menu.add_widget(btn_open)
+        menu.add_widget(btn_settings)
 
-        footer = Label(
-            text=MSG_WELCOME,
-            font_name=FONT_ARABIC,
-            font_size="15sp",
+        root.add_widget(menu)
+
+        # Filler
+        root.add_widget(Widget())
+
+        # Footer
+        self.footer = Label(
+            text=MSG_READY,
+            font_size="14sp",
             color=COLOR_TEXT_MUTED,
             size_hint_y=None,
             height=dp(50),
         )
-        self.add_widget(footer)
+        root.add_widget(self.footer)
 
-    def _update_bg(self, *args):
-        self.bg_rect.pos = self.pos
-        self.bg_rect.size = self.size
+        self.add_widget(root)
 
-    def _handle_new(self):
-        if self._on_new_doc:
-            self._on_new_doc()
+    def set_footer(self, text):
+        self.footer.text = text
 
-    def _handle_open(self):
-        if self._on_open_doc:
-            self._on_open_doc()
+    def _on_new(self, *args):
+        print("[HOME] New document tapped")
+        self.manager.current = "editor"
 
-    def _handle_settings(self):
-        if self._on_settings:
-            self._on_settings()
+    def _on_open(self, *args):
+        print("[HOME] Open document tapped")
+        self.set_footer("Open document - coming soon")
 
-
-def register_arabic_font():
-    """Register Arabic font with Kivy."""
-    from kivy.core.text import LabelBase
-    import os
-    if os.path.exists(FONT_ARABIC_PATH):
-        LabelBase.register(
-            name=FONT_ARABIC,
-            fn_regular=FONT_ARABIC_PATH,
-        )
-        return True
-    return False
+    def _on_settings(self, *args):
+        print("[HOME] Settings tapped")
+        self.set_footer("Settings - coming soon")
