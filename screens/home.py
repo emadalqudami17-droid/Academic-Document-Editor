@@ -8,8 +8,8 @@ from kivy.graphics import Color, Rectangle
 from kivy.metrics import dp
 
 from utils.constants import (
-    APP_VERSION, MSG_TITLE, MSG_SUBTITLE, MSG_NEW_DOC,
-    MSG_OPEN_DOC, MSG_SETTINGS, MSG_READY,
+    APP_VERSION, MSG_TITLE, MSG_SUBTITLE,
+    MSG_NEW_DOC, MSG_OPEN_DOC, MSG_SETTINGS, MSG_READY,
     COLOR_PRIMARY, COLOR_SECONDARY, COLOR_TERTIARY,
     COLOR_BG, COLOR_TEXT_LIGHT, COLOR_TEXT_MUTED,
     BUTTON_HEIGHT, SPACING_BUTTON,
@@ -20,7 +20,7 @@ from utils.constants import (
 # Header
 # =====================================================
 class Header(BoxLayout):
-    """Top header bar."""
+    """Top header bar with app name."""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -87,18 +87,13 @@ class MenuButton(Button):
 # Home Screen
 # =====================================================
 class HomeScreen(Screen):
-    """Home screen with menu."""
+    """Home screen with main menu."""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.name = "home"
 
-        # Root layout
-        root = BoxLayout(
-            orientation="vertical",
-            padding=0,
-            spacing=0,
-        )
+        root = BoxLayout(orientation="vertical", spacing=0)
 
         # Background
         with root.canvas.before:
@@ -113,7 +108,7 @@ class HomeScreen(Screen):
         root.add_widget(Header())
         root.add_widget(Widget(size_hint_y=None, height=dp(30)))
 
-        # Menu with proper padding
+        # Menu buttons
         menu = BoxLayout(
             orientation="vertical",
             padding=[dp(24), dp(10), dp(24), dp(10)],
@@ -145,8 +140,6 @@ class HomeScreen(Screen):
         menu.add_widget(btn_settings)
 
         root.add_widget(menu)
-
-        # Filler
         root.add_widget(Widget())
 
         # Footer
@@ -161,17 +154,25 @@ class HomeScreen(Screen):
 
         self.add_widget(root)
 
-    def set_footer(self, text):
-        self.footer.text = text
-
+    # =====================================================
+    # Actions
+    # =====================================================
     def _on_new(self, *args):
-        print("[HOME] New document tapped")
+        """Create new document -> open editor."""
+        print("[HOME] New document")
+        self.footer.text = ""
+
+        editor = self.manager.get_screen("editor")
+        editor.new_document()
         self.manager.current = "editor"
 
     def _on_open(self, *args):
-        print("[HOME] Open document tapped")
-        self.set_footer("Open document - coming soon")
+        """Open documents list."""
+        print("[HOME] Open documents list")
+        self.footer.text = ""
+        self.manager.current = "documents"
 
     def _on_settings(self, *args):
-        print("[HOME] Settings tapped")
-        self.set_footer("Settings - coming soon")
+        """Settings (coming soon)."""
+        print("[HOME] Settings")
+        self.footer.text = "Settings - coming soon"
