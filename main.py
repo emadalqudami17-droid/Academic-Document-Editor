@@ -68,7 +68,10 @@ def ar(text):
 
 def afont():
     """
-    Return Arabic font and RTL configuration.
+    Return Arabic font configuration only.
+
+    RTL properties are handled separately by
+    aLabel(), aButton(), and aTextInput().
     """
 
     result = {}
@@ -76,11 +79,7 @@ def afont():
     if FONT_LOADED:
         result["font_name"] = FONT_ARABIC
 
-    result["text_language"] = "ar"
-    result["base_direction"] = "rtl"
-
     return result
-
 
 def aLabel(text="", **kwargs):
     """
