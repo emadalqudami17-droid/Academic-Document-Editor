@@ -20,7 +20,7 @@ from kivy.metrics import dp
 
 
 # =====================================================
-# Register Arabic Font (must be done before any widget)
+# Register Arabic Font
 # =====================================================
 FONT_ARABIC = "NotoNaskh"
 FONT_PATH = "assets/fonts/NotoNaskhArabic-Regular.ttf"
@@ -30,10 +30,7 @@ try:
     real_path = resource_find(FONT_PATH)
     print(f"[FONT] resource_find: {real_path}")
     if real_path:
-        LabelBase.register(
-            name=FONT_ARABIC,
-            fn_regular=real_path,
-        )
+        LabelBase.register(name=FONT_ARABIC, fn_regular=real_path)
         FONT_LOADED = True
         print(f"[FONT] Registered OK: {FONT_ARABIC}")
     else:
@@ -42,18 +39,69 @@ except Exception as e:
     print(f"[FONT] ERROR: {e}")
 
 
+# =====================================================
+# Arabic Text Processing (reshaper + bidi)
+# =====================================================
+HAS_AR_SUPPORT = False
+arabic_reshaper = None
+get_display = None
+
+try:
+    import arabic_reshaper
+    from bidi.algorithm import get_display
+    HAS_AR_SUPPORT = True
+    print("[AR] arabic-reshaper + bidi loaded OK")
+except Exception as e:
+    print(f"[AR] ERROR: {e}")
+
+
+def ar(text):
+    """
+    Prepare Arabic text for Kivy rendering.
+    Applies reshaping (connect letters) + bidi (RTL direction).
+    """
+    if not text:
+        return text
+    if not HAS_AR_SUPPORT:
+        return text
+    try:
+        reshaped = arabic_reshaper.reshape(text)
+        return get_display(reshaped)
+    except Exception as e:
+        print(f"[AR] {e}")
+        return text
+
+
+# =====================================================
+# Font Helpers
+# =====================================================
 def afont():
-    """Return font_name kwarg dict for Arabic text (safe)."""
+    """Return font_name kwarg dict for Arabic text."""
     if FONT_LOADED:
         return {"font_name": FONT_ARABIC}
     return {}
+
+
+def aLabel(text="", **kwargs):
+    """Create a Label with Arabic font + processed text."""
+    return Label(text=ar(text), **afont(), **kwargs)
+
+
+def aButton(text="", **kwargs):
+    """Create a Button with Arabic font + processed text."""
+    return Button(text=ar(text), **afont(), **kwargs)
+
+
+def aTextInput(text="", **kwargs):
+    """Create a TextInput with Arabic font (text NOT reshaped - user types raw)."""
+    return TextInput(text=text, **afont(), **kwargs)
 
 
 # =====================================================
 # Configuration
 # =====================================================
 APP_NAME = "محرر أكاديمي"
-APP_VERSION = "2.0.0"
+APP_VERSION = "2.1.0"
 
 COLOR_PRIMARY = (0.12, 0.20, 0.35, 1)
 COLOR_SECONDARY = (0.20, 0.40, 0.60, 1)
@@ -69,7 +117,7 @@ COLOR_TOOLBAR_BTN = (0.30, 0.40, 0.50, 1)
 
 
 # =====================================================
-# Arabic strings
+# Arabic Strings
 # =====================================================
 MSG_APP_NAME = "محرر أكاديمي"
 MSG_SUBTITLE = "محرر المستندات الأكاديمية"
@@ -109,7 +157,7 @@ MSG_TOOL_UNDERLINE = "U"
 
 
 # =====================================================
-# Storage (uses user_data_dir, works on Android)
+# Storage
 # =====================================================
 STORAGE_DIR = None
 
@@ -229,24 +277,6 @@ class DocManager:
 
 
 # =====================================================
-# Helper: Arabic Label
-# =====================================================
-def aLabel(text="", **kwargs):
-    """Create a Label with the Arabic font applied."""
-    return Label(text=text, **afont(), **kwargs)
-
-
-def aButton(text="", **kwargs):
-    """Create a Button with the Arabic font applied."""
-    return Button(text=text, **afont(), **kwargs)
-
-
-def aTextInput(text="", **kwargs):
-    """Create a TextInput with the Arabic font applied."""
-    return TextInput(text=text, **afont(), **kwargs)
-
-
-# =====================================================
 # Home Screen
 # =====================================================
 class HomeScreen(Screen):
@@ -283,9 +313,9 @@ class HomeScreen(Screen):
 
         header.add_widget(aLabel(
             text=MSG_APP_NAME,
-            font_size="34sp", bold=True,
+            font_size="36sp", bold=True,
             color=(1, 1, 1, 1),
-            size_hint_y=None, height=dp(55),
+            size_hint_y=None, height=dp(58),
         ))
         header.add_widget(aLabel(
             text=MSG_SUBTITLE,
@@ -367,7 +397,7 @@ class HomeScreen(Screen):
         self.manager.current = "documents"
 
     def _on_settings(self, *args):
-        self.footer.text = MSG_SETTINGS_SOON
+        self.footer.text = ar(MSG_SETTINGS_SOON)
 
 
 # =====================================================
@@ -413,8 +443,9 @@ class EditorScreen(Screen):
         )
         btn_back.bind(on_release=self._on_back)
 
+        # Title input (user types raw - no reshape)
         self.title_input = aTextInput(
-            text=MSG_UNTITLED, hint_text=MSG_TITLE,
+            text=MSG_UNTITLED,
             font_size="18sp", multiline=False,
             background_color=(0, 0, 0, 0),
             foreground_color=(1, 1, 1, 1),
@@ -477,14 +508,16 @@ class EditorScreen(Screen):
             size=lambda *_: setattr(self.ed_bg, "size", editor_area.size),
         )
 
+        # Content input (user types raw)
         self.text_input = aTextInput(
-            text="", hint_text=MSG_PLACEHOLDER,
+            text="",
             font_size="17sp",
             foreground_color=COLOR_TEXT,
             background_color=COLOR_SURFACE,
             cursor_color=COLOR_PRIMARY,
             hint_text_color=(0.6, 0.65, 0.70, 1),
             multiline=True,
+            halign="right",
         )
         editor_area.add_widget(self.text_input)
         root.add_widget(editor_area)
@@ -510,13 +543,13 @@ class EditorScreen(Screen):
     def open_document(self, doc_id):
         data = DocManager.load(doc_id)
         if not data:
-            self.footer.text = MSG_NOT_FOUND
+            self.footer.text = ar(MSG_NOT_FOUND)
             return
         self.doc_id = data.get("id")
         self.doc_created = data.get("created")
         self.title_input.text = data.get("title", MSG_UNTITLED)
         self.text_input.text = data.get("content", "")
-        self.footer.text = f"{MSG_LOADED}: {self.title_input.text}"
+        self.footer.text = ar(f"{MSG_LOADED}: {self.title_input.text}")
 
     def _on_back(self, *args):
         self.manager.current = "home"
@@ -532,12 +565,12 @@ class EditorScreen(Screen):
         )
         if saved_id:
             self.doc_id = saved_id
-            self.footer.text = MSG_SAVED
+            self.footer.text = ar(MSG_SAVED)
         else:
-            self.footer.text = MSG_SAVE_FAILED
+            self.footer.text = ar(MSG_SAVE_FAILED)
 
     def _on_tool(self, action):
-        self.footer.text = f"{action}"
+        self.footer.text = ar(action)
 
 
 # =====================================================
@@ -723,7 +756,7 @@ class DocumentsListScreen(Screen):
         content.add_widget(btns)
 
         popup = Popup(
-            title=MSG_CONFIRM,
+            title=ar(MSG_CONFIRM),
             content=content,
             size_hint=(0.85, 0.4),
             auto_dismiss=False,
@@ -750,10 +783,10 @@ class AcademicWordEditorApp(App):
         self.title = APP_NAME
         Window.clearcolor = COLOR_BG
 
-        # Set storage dir (after app is running)
         set_storage_dir()
         print(f"[APP] Storage: {STORAGE_DIR}")
         print(f"[APP] Font loaded: {FONT_LOADED}")
+        print(f"[APP] AR support: {HAS_AR_SUPPORT}")
 
         sm = ScreenManager(transition=SlideTransition(duration=0.2))
         sm.add_widget(HomeScreen(name="home"))
