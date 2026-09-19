@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # main.py
 import os
 import json
@@ -15,279 +16,148 @@ from kivy.uix.popup import Popup
 from kivy.graphics import Color, Rectangle
 from kivy.core.window import Window
 from kivy.core.text import LabelBase
-from kivy.resources import resource_find
 from kivy.metrics import dp
 
 
-# =====================================================
-# Register Arabic Font
-# =====================================================
-FONT_ARABIC = "NotoNaskh"
-FONT_PATH = "assets/fonts/NotoNaskhArabic-Regular.ttf"
-FONT_LOADED = False
+# ============================================================
+# BASE DIRECTORY
+# ============================================================
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+# ============================================================
+# ARABIC FONT
+# ============================================================
+def _find_font():
+    candidates = [
+        os.path.join(BASE_DIR, "NotoNaskhArabic-Regular.ttf"),
+        "NotoNaskhArabic-Regular.ttf",
+        os.path.join(os.getcwd(), "NotoNaskhArabic-Regular.ttf"),
+        os.path.join(BASE_DIR, "assets", "fonts", "NotoNaskhArabic-Regular.ttf"),
+    ]
+    try:
+        app = App.get_running_app()
+        if app:
+            candidates.insert(0, os.path.join(app.directory, "NotoNaskhArabic-Regular.ttf"))
+    except Exception:
+        pass
+    for c in candidates:
+        if os.path.exists(c):
+            print(f"[FONT] Found: {c}")
+            return c
+    print(f"[FONT] NOT FOUND, using: {candidates[0]}")
+    return candidates[0]
+
+
+_FONT_PATH = _find_font()
+FONT_ARABIC = "Arabic"
 
 try:
-    real_path = resource_find(FONT_PATH)
-    print(f"[FONT] resource_find: {real_path}")
-    if real_path:
-        LabelBase.register(name=FONT_ARABIC, fn_regular=real_path)
-        FONT_LOADED = True
-        print(f"[FONT] Registered OK")
+    LabelBase.register(name=FONT_ARABIC, fn_regular=_FONT_PATH)
+    FONT_LOADED = True
+    print(f"[FONT] Registered OK: {FONT_ARABIC}")
 except Exception as e:
+    FONT_LOADED = False
     print(f"[FONT] ERROR: {e}")
 
 
-# =====================================================
-# ARABIC RESHAPER (built-in, no external deps)
-# =====================================================
-# Each Arabic letter has up to 4 forms:
-#   isolated, initial, medial, final
-# Letters that DO NOT connect to the next letter (right-joining only):
-#   ا د ذ ر ز و ؤ إ أ آ ة ى ء
-#
-# We use the Unicode Arabic Presentation Forms (FB50–FEFF)
-# to display shaped letters correctly.
-
-ARABIC_FORMS = {
-    # key: (isolated, initial, medial, final)
-    '\u0621': ('\uFE80', '\uFE80', '\uFE80', '\uFE80'),  # ء
-    '\u0622': ('\uFE81', '\uFE81', '\uFE82', '\uFE82'),  # آ
-    '\u0623': ('\uFE83', '\uFE83', '\uFE84', '\uFE84'),  # أ
-    '\u0624': ('\uFE85', '\uFE85', '\uFE86', '\uFE86'),  # ؤ
-    '\u0625': ('\uFE87', '\uFE87', '\uFE88', '\uFE88'),  # إ
-    '\u0626': ('\uFE89', '\uFE8B', '\uFE8C', '\uFE8A'),  # ئ
-    '\u0627': ('\uFE8D', '\uFE8D', '\uFE8E', '\uFE8E'),  # ا
-    '\u0628': ('\uFE8F', '\uFE91', '\uFE92', '\uFE90'),  # ب
-    '\u0629': ('\uFE93', '\uFE93', '\uFE94', '\uFE94'),  # ة
-    '\u062A': ('\uFE95', '\uFE97', '\uFE98', '\uFE96'),  # ت
-    '\u062B': ('\uFE99', '\uFE9B', '\uFE9C', '\uFE9A'),  # ث
-    '\u062C': ('\uFE9D', '\uFE9F', '\uFEA0', '\uFE9E'),  # ج
-    '\u062D': ('\uFEA1', '\uFEA3', '\uFEA4', '\uFEA2'),  # ح
-    '\u062E': ('\uFEA5', '\uFEA7', '\uFEA8', '\uFEA6'),  # خ
-    '\u062F': ('\uFEA9', '\uFEA9', '\uFEAA', '\uFEAA'),  # د
-    '\u0630': ('\uFEAB', '\uFEAB', '\uFEAC', '\uFEAC'),  # ذ
-    '\u0631': ('\uFEAD', '\uFEAD', '\uFEAE', '\uFEAE'),  # ر
-    '\u0632': ('\uFEAF', '\uFEAF', '\uFEB0', '\uFEB0'),  # ز
-    '\u0633': ('\uFEB1', '\uFEB3', '\uFEB4', '\uFEB2'),  # س
-    '\u0634': ('\uFEB5', '\uFEB7', '\uFEB8', '\uFEB6'),  # ش
-    '\u0635': ('\uFEB9', '\uFEBB', '\uFEBC', '\uFEBA'),  # ص
-    '\u0636': ('\uFEBD', '\uFEBF', '\uFEC0', '\uFEBE'),  # ض
-    '\u0637': ('\uFEC1', '\uFEC3', '\uFEC4', '\uFEC2'),  # ط
-    '\u0638': ('\uFEC5', '\uFEC7', '\uFEC8', '\uFEC6'),  # ظ
-    '\u0639': ('\uFEC9', '\uFECB', '\uFECC', '\uFECA'),  # ع
-    '\u063A': ('\uFECD', '\uFECF', '\uFED0', '\uFECE'),  # غ
-    '\u0640': ('\u0640', '\u0640', '\u0640', '\u0640'),  # ـ tatweel
-    '\u0641': ('\uFED1', '\uFED3', '\uFED4', '\uFED2'),  # ف
-    '\u0642': ('\uFED5', '\uFED7', '\uFED8', '\uFED6'),  # ق
-    '\u0643': ('\uFED9', '\uFEDB', '\uFEDC', '\uFEDA'),  # ك
-    '\u0644': ('\uFEDD', '\uFEDF', '\uFEE0', '\uFEDE'),  # ل
-    '\u0645': ('\uFEE1', '\uFEE3', '\uFEE4', '\uFEE2'),  # م
-    '\u0646': ('\uFEE5', '\uFEE7', '\uFEE8', '\uFEE6'),  # ن
-    '\u0647': ('\uFEE9', '\uFEEB', '\uFEEC', '\uFEEA'),  # ه
-    '\u0648': ('\uFEED', '\uFEED', '\uFEEE', '\uFEEE'),  # و
-    '\u0649': ('\uFEEF', '\uFEEF', '\uFEF0', '\uFEF0'),  # ى
-    '\u064A': ('\uFEF1', '\uFEF3', '\uFEF4', '\uFEF2'),  # ي
-    # Special lam-alef ligatures
-    '\u0644\u0622': ('\uFEF5', '\uFEF5', '\uFEF6', '\uFEF6'),  # لا آ
-    '\u0644\u0623': ('\uFEF7', '\uFEF7', '\uFEF8', '\uFEF8'),  # لأ
-    '\u0644\u0625': ('\uFEF9', '\uFEF9', '\uFEFA', '\uFEFA'),  # لإ
-    '\u0644\u0627': ('\uFEFB', '\uFEFB', '\uFEFC', '\uFEFC'),  # لا
-}
-
-# Letters that connect to the following letter (on their left side)
-DUAL_JOINING = set()
-for c, forms in ARABIC_FORMS.items():
-    # Only single-char keys with 4 distinct forms count as dual-joining
-    if len(c) == 1 and len(set(forms)) >= 3:
-        DUAL_JOINING.add(c)
-
-# Letters that do NOT connect to the following letter
-RIGHT_JOINING = set()
-for c, forms in ARABIC_FORMS.items():
-    if len(c) == 1 and c not in DUAL_JOINING:
-        RIGHT_JOINING.add(c)
-
-# Arabic letter detection range
-def is_arabic_letter(ch):
-    if not ch:
-        return False
-    cp = ord(ch)
-    return (
-        0x0621 <= cp <= 0x064A or   # Arabic letters
-        0x0660 <= cp <= 0x0669 or   # Arabic-Indic digits
-        0x06F0 <= cp <= 0x06F9      # Extended Arabic-Indic digits
-    )
+# ============================================================
+# ARABIC RESHAPER
+# ============================================================
+try:
+    import arabic_reshaper
+    _RESHAPER_OK = True
+    print("[RESHAPER] arabic_reshaper loaded OK")
+except Exception as e:
+    _RESHAPER_OK = False
+    print(f"[RESHAPER] ERROR: {e}")
 
 
-def is_diacritic(ch):
-    """Arabic diacritics (tashkeel) - they don't affect joining."""
-    if not ch:
-        return False
-    cp = ord(ch)
-    return 0x064B <= cp <= 0x065F or cp == 0x0670 or 0x06D6 <= cp <= 0x06ED
-
-
-def reshape_arabic(text):
-    """Convert Arabic letters to their contextual presentation forms."""
+def _reverse_arabic(text):
+    """
+    Smart Arabic reversal:
+    - Splits by lines and words
+    - Reverses word order
+    - Reverses each word's letters (except numbers/symbols)
+    This is the approach used in Ahmed-World that works reliably.
+    """
     if not text:
         return text
 
-    result = []
-    chars = list(text)
-    n = len(chars)
+    lines = text.split("\n")
+    result_lines = []
 
-    i = 0
-    while i < n:
-        ch = chars[i]
+    for line in lines:
+        if not line.strip():
+            result_lines.append(line)
+            continue
 
-        # Check for lam-alef ligature (2-char)
-        if i + 1 < n and ch == '\u0644':
-            next_ch = chars[i + 1]
-            key = ch + next_ch
-            if key in ARABIC_FORMS:
-                # Determine form based on context before
-                prev_real = None
-                j = i - 1
-                while j >= 0 and is_diacritic(chars[j]):
-                    j -= 1
-                if j >= 0:
-                    prev_real = chars[j]
-                prev_connects = prev_real and (prev_real in DUAL_JOINING)
+        words = line.split(" ")
+        words.reverse()
 
-                # Lam-alef ligature: isolated or final
-                if prev_connects:
-                    result.append(ARABIC_FORMS[key][3])  # final
-                else:
-                    result.append(ARABIC_FORMS[key][0])  # isolated
-                i += 2
+        reversed_words = []
+        for word in words:
+            if not word:
+                reversed_words.append("")
                 continue
 
-        # Regular letter
-        if ch in ARABIC_FORMS and len(ch) == 1:
-            # Find previous real (non-diacritic) letter
-            prev_real = None
-            j = i - 1
-            while j >= 0 and is_diacritic(chars[j]):
-                j -= 1
-            if j >= 0:
-                prev_real = chars[j]
-
-            # Find next real letter
-            next_real = None
-            j = i + 1
-            while j < n and is_diacritic(chars[j]):
-                j += 1
-            if j < n:
-                next_real = chars[j]
-
-            # Determine connection
-            connects_prev = prev_real and (prev_real in DUAL_JOINING)
-            connects_next = next_real and (next_real in ARABIC_FORMS)
-
-            # Can this letter connect to next? Only dual-joining
-            can_connect_next = ch in DUAL_JOINING
-            will_connect_next = connects_next and can_connect_next
-
-            # Choose the form
-            if connects_prev and will_connect_next:
-                form = ARABIC_FORMS[ch][2]  # medial
-            elif connects_prev:
-                form = ARABIC_FORMS[ch][3]  # final
-            elif will_connect_next:
-                form = ARABIC_FORMS[ch][1]  # initial
+            first_char = word[0]
+            if first_char.isdigit() or first_char in "0123456789+-*/=.,:;()[]":
+                reversed_words.append(word)
             else:
-                form = ARABIC_FORMS[ch][0]  # isolated
+                reversed_words.append(word[::-1])
 
-            result.append(form)
-        else:
-            result.append(ch)
+        result_lines.append(" ".join(reversed_words))
 
-        i += 1
-
-    return ''.join(result)
-
-
-def bidi_reorder(text):
-    """
-    Reverse Arabic segments so they display correctly RTL.
-    Keeps Latin words and numbers LTR within Arabic text.
-    """
-    if not text:
-        return text
-
-    # Split into runs of Arabic vs non-Arabic
-    runs = []
-    current = ""
-    current_is_ar = None
-
-    for ch in text:
-        # Treat Arabic letters as RTL, everything else as LTR/neutral
-        is_ar = is_arabic_letter(ch)
-        if current_is_ar is None:
-            current_is_ar = is_ar
-            current = ch
-        elif is_ar == current_is_ar:
-            current += ch
-        else:
-            runs.append((current_is_ar, current))
-            current = ch
-            current_is_ar = is_ar
-
-    if current:
-        runs.append((current_is_ar, current))
-
-    # Reverse the order of runs
-    runs.reverse()
-
-    # Within RTL runs, reverse the characters too
-    result = []
-    for is_ar, segment in runs:
-        if is_ar:
-            result.append(segment[::-1])
-        else:
-            result.append(segment)
-
-    return ''.join(result)
+    return "\n".join(result_lines)
 
 
 def ar(text):
     """Prepare Arabic text for Kivy rendering."""
     if not text:
         return text
-    try:
-        reshaped = reshape_arabic(text)
-        return bidi_reorder(reshaped)
-    except Exception as e:
-        print(f"[AR] ERROR: {e}")
-        return text
+
+    if _RESHAPER_OK:
+        try:
+            reshaped = arabic_reshaper.reshape(text)
+        except Exception as e:
+            print(f"[AR] reshape error: {e}")
+            reshaped = text
+    else:
+        reshaped = text
+
+    return _reverse_arabic(reshaped)
 
 
-# =====================================================
-# Font Helpers
-# =====================================================
+# ============================================================
+# FONT HELPERS
+# ============================================================
 def afont():
     if FONT_LOADED:
         return {"font_name": FONT_ARABIC}
     return {}
 
 
-def aLabel(text="", **kwargs):
+def make_label(text="", **kwargs):
+    """Label with Arabic font + processed text."""
     return Label(text=ar(text), **afont(), **kwargs)
 
 
-def aButton(text="", **kwargs):
+def make_button(text="", **kwargs):
+    """Button with Arabic font + processed text."""
     return Button(text=ar(text), **afont(), **kwargs)
 
 
-def aTextInput(text="", **kwargs):
+def make_input(text="", **kwargs):
+    """TextInput with Arabic font (raw text, not reshaped)."""
     return TextInput(text=text, **afont(), **kwargs)
 
 
-# =====================================================
-# Configuration
-# =====================================================
+# ============================================================
+# CONFIG
+# ============================================================
 APP_NAME = "محرر أكاديمي"
-APP_VERSION = "2.2.0"
+APP_VERSION = "3.0.0"
 
 COLOR_PRIMARY = (0.12, 0.20, 0.35, 1)
 COLOR_SECONDARY = (0.20, 0.40, 0.60, 1)
@@ -302,28 +172,24 @@ COLOR_TOOLBAR_BG = (0.94, 0.95, 0.96, 1)
 COLOR_TOOLBAR_BTN = (0.30, 0.40, 0.50, 1)
 
 
-# =====================================================
-# Arabic Strings
-# =====================================================
+# ============================================================
+# ARABIC STRINGS
+# ============================================================
 MSG_APP_NAME = "محرر أكاديمي"
 MSG_SUBTITLE = "محرر المستندات الأكاديمية"
 MSG_VERSION_LABEL = "الإصدار"
-
 MSG_NEW_DOC = "مستند جديد"
 MSG_OPEN_DOC = "فتح مستند"
 MSG_SETTINGS = "الإعدادات"
 MSG_READY = "جاهز"
 MSG_SETTINGS_SOON = "الإعدادات - قريبًا"
-
 MSG_MY_DOCS = "مستنداتي"
 MSG_NO_DOCS = "لا توجد مستندات بعد"
-MSG_NO_DOCS_HINT = "اضغط \"مستند جديد\" لإنشاء أول مستند"
-
+MSG_NO_DOCS_HINT = "اضغط مستند جديد لإنشاء أول مستند"
 MSG_OPEN_BTN = "فتح"
 MSG_DELETE = "حذف"
 MSG_CANCEL = "إلغاء"
 MSG_CONFIRM = "تأكيد الحذف"
-
 MSG_UNTITLED = "بدون عنوان"
 MSG_PLACEHOLDER = "ابدأ الكتابة هنا..."
 MSG_SAVE = "حفظ"
@@ -332,7 +198,6 @@ MSG_SAVED = "تم حفظ المستند"
 MSG_LOADED = "تم التحميل"
 MSG_NOT_FOUND = "المستند غير موجود"
 MSG_UPDATED = "آخر تحديث"
-
 MSG_TOOL_H1 = "ع1"
 MSG_TOOL_H2 = "ع2"
 MSG_TOOL_BODY = "نص"
@@ -341,9 +206,9 @@ MSG_TOOL_ITALIC = "I"
 MSG_TOOL_UNDERLINE = "U"
 
 
-# =====================================================
-# Storage
-# =====================================================
+# ============================================================
+# STORAGE
+# ============================================================
 STORAGE_DIR = None
 
 
@@ -372,11 +237,10 @@ def set_storage_dir():
     return STORAGE_DIR
 
 
-# =====================================================
-# DocManager
-# =====================================================
+# ============================================================
+# DOC MANAGER
+# ============================================================
 class DocManager:
-
     @staticmethod
     def path_for(doc_id):
         return os.path.join(STORAGE_DIR, f"{doc_id}.json")
@@ -386,11 +250,9 @@ class DocManager:
         if not doc_id:
             doc_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         os.makedirs(STORAGE_DIR, exist_ok=True)
-
         if created is None:
             existing = DocManager.load(doc_id)
             created = existing.get("created") if existing else datetime.now().isoformat()
-
         data = {
             "id": doc_id,
             "title": title or MSG_UNTITLED,
@@ -461,17 +323,15 @@ class DocManager:
         return docs
 
 
-# =====================================================
-# Home Screen
-# =====================================================
+# ============================================================
+# HOME SCREEN
+# ============================================================
 class HomeScreen(Screen):
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.name = "home"
 
         root = BoxLayout(orientation="vertical", spacing=0)
-
         with root.canvas.before:
             Color(*COLOR_BG)
             self.bg = Rectangle(pos=root.pos, size=root.size)
@@ -493,24 +353,19 @@ class HomeScreen(Screen):
             pos=lambda *_: setattr(self.h_bg, "pos", header.pos),
             size=lambda *_: setattr(self.h_bg, "size", header.size),
         )
-
-        header.add_widget(aLabel(
-            text=MSG_APP_NAME,
-            font_size="36sp", bold=True,
-            color=(1, 1, 1, 1),
-            size_hint_y=None, height=dp(58),
+        header.add_widget(make_label(
+            text=MSG_APP_NAME, font_size="36sp", bold=True,
+            color=(1, 1, 1, 1), size_hint_y=None, height=dp(58),
         ))
-        header.add_widget(aLabel(
-            text=MSG_SUBTITLE,
-            font_size="18sp", color=COLOR_TEXT_LIGHT,
-            size_hint_y=None, height=dp(38),
+        header.add_widget(make_label(
+            text=MSG_SUBTITLE, font_size="18sp",
+            color=COLOR_TEXT_LIGHT, size_hint_y=None, height=dp(38),
         ))
-        header.add_widget(aLabel(
+        header.add_widget(make_label(
             text=f"{MSG_VERSION_LABEL} {APP_VERSION}",
             font_size="13sp", color=(0.70, 0.75, 0.82, 1),
             size_hint_y=None, height=dp(22),
         ))
-
         root.add_widget(header)
         root.add_widget(Widget(size_hint_y=None, height=dp(30)))
 
@@ -522,32 +377,26 @@ class HomeScreen(Screen):
             height=dp(3 * (68 + 16) + 20),
         )
 
-        btn_new = aButton(
-            text=MSG_NEW_DOC,
-            font_size="22sp",
+        btn_new = make_button(
+            text=MSG_NEW_DOC, font_size="22sp",
             size_hint=(1, None), height=dp(68),
-            background_normal="",
-            background_color=COLOR_PRIMARY,
+            background_normal="", background_color=COLOR_PRIMARY,
             color=(1, 1, 1, 1),
         )
         btn_new.bind(on_release=self._on_new)
 
-        btn_open = aButton(
-            text=MSG_OPEN_DOC,
-            font_size="22sp",
+        btn_open = make_button(
+            text=MSG_OPEN_DOC, font_size="22sp",
             size_hint=(1, None), height=dp(68),
-            background_normal="",
-            background_color=COLOR_SECONDARY,
+            background_normal="", background_color=COLOR_SECONDARY,
             color=(1, 1, 1, 1),
         )
         btn_open.bind(on_release=self._on_open)
 
-        btn_settings = aButton(
-            text=MSG_SETTINGS,
-            font_size="22sp",
+        btn_settings = make_button(
+            text=MSG_SETTINGS, font_size="22sp",
             size_hint=(1, None), height=dp(68),
-            background_normal="",
-            background_color=COLOR_TERTIARY,
+            background_normal="", background_color=COLOR_TERTIARY,
             color=(1, 1, 1, 1),
         )
         btn_settings.bind(on_release=self._on_settings)
@@ -555,14 +404,12 @@ class HomeScreen(Screen):
         menu.add_widget(btn_new)
         menu.add_widget(btn_open)
         menu.add_widget(btn_settings)
-
         root.add_widget(menu)
         root.add_widget(Widget())
 
-        self.footer = aLabel(
-            text=MSG_READY,
-            font_size="15sp", color=COLOR_TEXT_MUTED,
-            size_hint_y=None, height=dp(50),
+        self.footer = make_label(
+            text=MSG_READY, font_size="15sp",
+            color=COLOR_TEXT_MUTED, size_hint_y=None, height=dp(50),
         )
         root.add_widget(self.footer)
 
@@ -582,11 +429,10 @@ class HomeScreen(Screen):
         self.footer.text = ar(MSG_SETTINGS_SOON)
 
 
-# =====================================================
-# Editor Screen
-# =====================================================
+# ============================================================
+# EDITOR SCREEN
+# ============================================================
 class EditorScreen(Screen):
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.name = "editor"
@@ -594,7 +440,6 @@ class EditorScreen(Screen):
         self.doc_created = None
 
         root = BoxLayout(orientation="vertical", spacing=0)
-
         with root.canvas.before:
             Color(*COLOR_BG)
             self.bg = Rectangle(pos=root.pos, size=root.size)
@@ -603,6 +448,7 @@ class EditorScreen(Screen):
             size=lambda *_: setattr(self.bg, "size", root.size),
         )
 
+        # Top bar
         top = BoxLayout(
             orientation="horizontal",
             size_hint_y=None, height=dp(60),
@@ -616,7 +462,7 @@ class EditorScreen(Screen):
             size=lambda *_: setattr(self.t_bg, "size", top.size),
         )
 
-        btn_back = aButton(
+        btn_back = make_button(
             text=">", font_size="24sp",
             size_hint=(None, 1), width=dp(50),
             background_normal="", background_color=(0, 0, 0, 0),
@@ -624,18 +470,15 @@ class EditorScreen(Screen):
         )
         btn_back.bind(on_release=self._on_back)
 
-        # Title input - user types raw (no reshaping in TextInput)
-        self.title_input = aTextInput(
-            text=MSG_UNTITLED,
-            font_size="18sp", multiline=False,
+        self.title_input = make_input(
+            text=MSG_UNTITLED, font_size="18sp", multiline=False,
             background_color=(0, 0, 0, 0),
             foreground_color=(1, 1, 1, 1),
             cursor_color=(1, 1, 1, 1),
-            hint_text_color=(0.7, 0.75, 0.82, 1),
             halign="right",
         )
 
-        btn_save = aButton(
+        btn_save = make_button(
             text=MSG_SAVE, font_size="16sp",
             size_hint=(None, 1), width=dp(80),
             background_normal="", background_color=(0, 0, 0, 0),
@@ -648,6 +491,7 @@ class EditorScreen(Screen):
         top.add_widget(btn_save)
         root.add_widget(top)
 
+        # Toolbar
         toolbar = BoxLayout(
             orientation="horizontal",
             size_hint_y=None, height=dp(50),
@@ -663,10 +507,12 @@ class EditorScreen(Screen):
 
         for label, action in [
             (MSG_TOOL_H1, "h1"), (MSG_TOOL_H2, "h2"), (MSG_TOOL_BODY, "body"),
-            (MSG_TOOL_BOLD, "bold"), (MSG_TOOL_ITALIC, "italic"), (MSG_TOOL_UNDERLINE, "underline"),
+            (MSG_TOOL_BOLD, "bold"), (MSG_TOOL_ITALIC, "italic"),
+            (MSG_TOOL_UNDERLINE, "underline"),
         ]:
-            b = aButton(
-                text=label, font_size="14sp", bold=(action in ("h1", "h2")),
+            b = make_button(
+                text=label, font_size="14sp",
+                bold=(action in ("h1", "h2")),
                 size_hint_y=None, height=dp(42),
                 size_hint_x=None, width=dp(55),
                 background_normal="",
@@ -678,6 +524,7 @@ class EditorScreen(Screen):
         toolbar.add_widget(Label())
         root.add_widget(toolbar)
 
+        # Editor area
         editor_area = BoxLayout(padding=[dp(12), dp(12)])
         with editor_area.canvas.before:
             Color(*COLOR_SURFACE)
@@ -687,20 +534,17 @@ class EditorScreen(Screen):
             size=lambda *_: setattr(self.ed_bg, "size", editor_area.size),
         )
 
-        self.text_input = aTextInput(
-            text="",
-            font_size="17sp",
+        self.text_input = make_input(
+            text="", font_size="17sp",
             foreground_color=COLOR_TEXT,
             background_color=COLOR_SURFACE,
             cursor_color=COLOR_PRIMARY,
-            hint_text_color=(0.6, 0.65, 0.70, 1),
-            multiline=True,
-            halign="right",
+            multiline=True, halign="right",
         )
         editor_area.add_widget(self.text_input)
         root.add_widget(editor_area)
 
-        self.footer = aLabel(
+        self.footer = make_label(
             text="", font_size="13sp",
             color=COLOR_TEXT_MUTED,
             size_hint_y=None, height=dp(35),
@@ -734,10 +578,8 @@ class EditorScreen(Screen):
         title = self.title_input.text.strip() or MSG_UNTITLED
         content = self.text_input.text
         saved_id = DocManager.save(
-            doc_id=self.doc_id,
-            title=title,
-            content=content,
-            created=self.doc_created,
+            doc_id=self.doc_id, title=title,
+            content=content, created=self.doc_created,
         )
         if saved_id:
             self.doc_id = saved_id
@@ -749,17 +591,15 @@ class EditorScreen(Screen):
         self.footer.text = ar(action)
 
 
-# =====================================================
-# Documents List Screen
-# =====================================================
+# ============================================================
+# DOCUMENTS LIST SCREEN
+# ============================================================
 class DocumentsListScreen(Screen):
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.name = "documents"
 
         root = BoxLayout(orientation="vertical", spacing=0)
-
         with root.canvas.before:
             Color(*COLOR_BG)
             self.bg = Rectangle(pos=root.pos, size=root.size)
@@ -781,7 +621,7 @@ class DocumentsListScreen(Screen):
             size=lambda *_: setattr(self.t_bg, "size", top.size),
         )
 
-        btn_back = aButton(
+        btn_back = make_button(
             text=">", font_size="24sp",
             size_hint=(None, 1), width=dp(50),
             background_normal="", background_color=(0, 0, 0, 0),
@@ -790,9 +630,8 @@ class DocumentsListScreen(Screen):
         btn_back.bind(on_release=lambda *_: self._back())
 
         top.add_widget(btn_back)
-        top.add_widget(aLabel(
-            text=MSG_MY_DOCS,
-            font_size="20sp", color=(1, 1, 1, 1),
+        top.add_widget(make_label(
+            text=MSG_MY_DOCS, font_size="20sp", color=(1, 1, 1, 1),
         ))
         top.add_widget(Label(size_hint=(None, 1), width=dp(50)))
         root.add_widget(top)
@@ -812,17 +651,13 @@ class DocumentsListScreen(Screen):
 
         self.empty = BoxLayout(orientation="vertical", padding=dp(30))
         self.empty.add_widget(Widget())
-        self.empty.add_widget(aLabel(
-            text=MSG_NO_DOCS,
-            font_size="20sp", bold=True,
-            color=COLOR_TEXT_MUTED,
-            size_hint_y=None, height=dp(40),
+        self.empty.add_widget(make_label(
+            text=MSG_NO_DOCS, font_size="20sp", bold=True,
+            color=COLOR_TEXT_MUTED, size_hint_y=None, height=dp(40),
         ))
-        self.empty.add_widget(aLabel(
-            text=MSG_NO_DOCS_HINT,
-            font_size="15sp",
-            color=COLOR_TEXT_MUTED,
-            size_hint_y=None, height=dp(30),
+        self.empty.add_widget(make_label(
+            text=MSG_NO_DOCS_HINT, font_size="15sp",
+            color=COLOR_TEXT_MUTED, size_hint_y=None, height=dp(30),
         ))
         self.empty.add_widget(Widget())
         root.add_widget(self.empty)
@@ -849,8 +684,7 @@ class DocumentsListScreen(Screen):
         row = BoxLayout(
             orientation="horizontal",
             size_hint_y=None, height=dp(90),
-            padding=[dp(12), dp(8)],
-            spacing=dp(8),
+            padding=[dp(12), dp(8)], spacing=dp(8),
         )
         with row.canvas.before:
             Color(*COLOR_SURFACE)
@@ -861,23 +695,21 @@ class DocumentsListScreen(Screen):
         )
 
         info = BoxLayout(orientation="vertical", spacing=dp(4))
-        info.add_widget(aLabel(
+        info.add_widget(make_label(
             text=doc.get("title", MSG_UNTITLED),
             font_size="18sp", bold=True,
             color=COLOR_TEXT, halign="right",
             size_hint_y=None, height=dp(30),
         ))
         updated = doc.get("updated", "")[:16].replace("T", " ")
-        info.add_widget(aLabel(
+        info.add_widget(make_label(
             text=f"{MSG_UPDATED}: {updated}",
             font_size="12sp", color=COLOR_TEXT_MUTED,
-            halign="right",
-            size_hint_y=None, height=dp(22),
+            halign="right", size_hint_y=None, height=dp(22),
         ))
 
-        btn_open = aButton(
-            text=MSG_OPEN_BTN,
-            font_size="15sp",
+        btn_open = make_button(
+            text=MSG_OPEN_BTN, font_size="15sp",
             size_hint=(None, 1), width=dp(80),
             background_normal="",
             background_color=COLOR_SECONDARY,
@@ -885,9 +717,8 @@ class DocumentsListScreen(Screen):
         )
         btn_open.bind(on_release=lambda b, did=doc["id"]: self._open(did))
 
-        btn_del = aButton(
-            text="X",
-            font_size="16sp", bold=True,
+        btn_del = make_button(
+            text="X", font_size="16sp", bold=True,
             size_hint=(None, 1), width=dp(45),
             background_normal="",
             background_color=COLOR_DANGER,
@@ -907,7 +738,7 @@ class DocumentsListScreen(Screen):
 
     def _confirm_delete(self, doc):
         content = BoxLayout(orientation="vertical", padding=dp(16), spacing=dp(12))
-        content.add_widget(aLabel(
+        content.add_widget(make_label(
             text=f"{MSG_CONFIRM}: {doc.get('title', MSG_UNTITLED)}",
             halign="center",
         ))
@@ -915,10 +746,14 @@ class DocumentsListScreen(Screen):
             orientation="horizontal", size_hint_y=None,
             height=dp(50), spacing=dp(10),
         )
-        btn_no = aButton(text=MSG_CANCEL, background_normal="",
-                         background_color=COLOR_SECONDARY, color=(1, 1, 1, 1))
-        btn_yes = aButton(text=MSG_DELETE, background_normal="",
-                          background_color=COLOR_DANGER, color=(1, 1, 1, 1))
+        btn_no = make_button(
+            text=MSG_CANCEL, background_normal="",
+            background_color=COLOR_SECONDARY, color=(1, 1, 1, 1),
+        )
+        btn_yes = make_button(
+            text=MSG_DELETE, background_normal="",
+            background_color=COLOR_DANGER, color=(1, 1, 1, 1),
+        )
         btns.add_widget(btn_no)
         btns.add_widget(btn_yes)
         content.add_widget(btns)
@@ -942,18 +777,18 @@ class DocumentsListScreen(Screen):
         self.manager.current = "home"
 
 
-# =====================================================
-# App
-# =====================================================
+# ============================================================
+# APP
+# ============================================================
 class AcademicWordEditorApp(App):
-
     def build(self):
         self.title = APP_NAME
         Window.clearcolor = COLOR_BG
 
         set_storage_dir()
         print(f"[APP] Storage: {STORAGE_DIR}")
-        print(f"[APP] Font: {FONT_LOADED}")
+        print(f"[APP] Font loaded: {FONT_LOADED}")
+        print(f"[APP] Reshaper OK: {_RESHAPER_OK}")
 
         sm = ScreenManager(transition=SlideTransition(duration=0.2))
         sm.add_widget(HomeScreen(name="home"))
