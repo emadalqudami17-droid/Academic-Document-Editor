@@ -8,7 +8,7 @@ source.dir = .
 source.include_exts = py,png,jpg,jpeg,kv,atlas,json,ttf,otf,txt,md
 source.exclude_dirs = tests,bin,venv,.buildozer,.git,__pycache__
 
-version = 2.3.0
+version = 5.0.0
 
 icon.filename = %(source.dir)s/assets/icon.png
 
