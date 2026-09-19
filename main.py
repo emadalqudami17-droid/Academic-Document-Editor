@@ -79,7 +79,6 @@ def _reverse_arabic(text):
     - Splits by lines and words
     - Reverses word order
     - Reverses each word's letters (except numbers/symbols)
-    This is the approach used in Ahmed-World that works reliably.
     """
     if not text:
         return text
@@ -148,16 +147,73 @@ def make_button(text="", **kwargs):
     return Button(text=ar(text), **afont(), **kwargs)
 
 
+# ============================================================
+# ARABIC TEXT INPUT (Smart RTL handling)
+# ============================================================
+class ArabicTextInput(TextInput):
+    """
+    Smart Arabic TextInput:
+    - Stores raw text (unprocessed) in self.raw_text
+    - When focused: shows raw text (user types normally)
+    - When not focused: shows processed text (correct Arabic display)
+    - get_raw_text() returns the original text
+    - set_raw_text(raw) sets raw text and displays processed version
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.raw_text = ""
+        self._processing = False
+        self.bind(focus=self._on_focus_change)
+        if FONT_LOADED:
+            self.font_name = FONT_ARABIC
+
+    def _on_focus_change(self, instance, focused):
+        """When focus changes, toggle between raw/processed view."""
+        if self._processing:
+            return
+
+        if focused:
+            # User wants to type - show raw text
+            self._processing = True
+            if self.raw_text:
+                self.text = self.raw_text
+            self._processing = False
+        else:
+            # User left - store raw and show processed
+            self._processing = True
+            self.raw_text = self.text
+            processed = ar(self.text)
+            self.text = processed
+            self._processing = False
+
+    def get_raw_text(self):
+        """Get the original unprocessed text."""
+        if self.raw_text:
+            return self.raw_text
+        return self.text
+
+    def set_raw_text(self, raw):
+        """Set raw text and display processed version."""
+        self._processing = True
+        self.raw_text = raw or ""
+        if raw:
+            self.text = ar(raw)
+        else:
+            self.text = ""
+        self._processing = False
+
+
 def make_input(text="", **kwargs):
-    """TextInput with Arabic font (raw text, not reshaped)."""
-    return TextInput(text=text, **afont(), **kwargs)
+    """Create an ArabicTextInput."""
+    return ArabicTextInput(text=text, **kwargs)
 
 
 # ============================================================
 # CONFIG
 # ============================================================
 APP_NAME = "محرر أكاديمي"
-APP_VERSION = "3.0.0"
+APP_VERSION = "3.1.0"
 
 COLOR_PRIMARY = (0.12, 0.20, 0.35, 1)
 COLOR_SECONDARY = (0.20, 0.40, 0.60, 1)
@@ -204,6 +260,7 @@ MSG_TOOL_BODY = "نص"
 MSG_TOOL_BOLD = "B"
 MSG_TOOL_ITALIC = "I"
 MSG_TOOL_UNDERLINE = "U"
+MSG_HINT_EDITING = "أنت تكتب الآن... النص سيُنسَّق عند الخروج من الحقل"
 
 
 # ============================================================
@@ -448,7 +505,7 @@ class EditorScreen(Screen):
             size=lambda *_: setattr(self.bg, "size", root.size),
         )
 
-        # Top bar
+        # --- Top bar ---
         top = BoxLayout(
             orientation="horizontal",
             size_hint_y=None, height=dp(60),
@@ -471,7 +528,9 @@ class EditorScreen(Screen):
         btn_back.bind(on_release=self._on_back)
 
         self.title_input = make_input(
-            text=MSG_UNTITLED, font_size="18sp", multiline=False,
+            text=MSG_UNTITLED,
+            font_size="18sp",
+            multiline=False,
             background_color=(0, 0, 0, 0),
             foreground_color=(1, 1, 1, 1),
             cursor_color=(1, 1, 1, 1),
@@ -491,7 +550,7 @@ class EditorScreen(Screen):
         top.add_widget(btn_save)
         root.add_widget(top)
 
-        # Toolbar
+        # --- Toolbar ---
         toolbar = BoxLayout(
             orientation="horizontal",
             size_hint_y=None, height=dp(50),
@@ -524,8 +583,19 @@ class EditorScreen(Screen):
         toolbar.add_widget(Label())
         root.add_widget(toolbar)
 
-        # Editor area
-        editor_area = BoxLayout(padding=[dp(12), dp(12)])
+        # --- Hint label ---
+        self.hint_label = make_label(
+            text=MSG_HINT_EDITING,
+            font_size="12sp",
+            color=COLOR_TEXT_MUTED,
+            halign="center",
+            size_hint_y=None,
+            height=dp(28),
+        )
+        root.add_widget(self.hint_label)
+
+        # --- Editor area ---
+        editor_area = BoxLayout(padding=[dp(12), dp(4)])
         with editor_area.canvas.before:
             Color(*COLOR_SURFACE)
             self.ed_bg = Rectangle(pos=editor_area.pos, size=editor_area.size)
@@ -535,15 +605,20 @@ class EditorScreen(Screen):
         )
 
         self.text_input = make_input(
-            text="", font_size="17sp",
+            text="",
+            hint_text=MSG_PLACEHOLDER,
+            font_size="17sp",
             foreground_color=COLOR_TEXT,
             background_color=COLOR_SURFACE,
             cursor_color=COLOR_PRIMARY,
-            multiline=True, halign="right",
+            hint_text_color=(0.6, 0.65, 0.70, 1),
+            multiline=True,
+            halign="right",
         )
         editor_area.add_widget(self.text_input)
         root.add_widget(editor_area)
 
+        # --- Footer ---
         self.footer = make_label(
             text="", font_size="13sp",
             color=COLOR_TEXT_MUTED,
@@ -553,11 +628,12 @@ class EditorScreen(Screen):
 
         self.add_widget(root)
 
+    # --- Public API ---
     def new_document(self):
         self.doc_id = None
         self.doc_created = None
-        self.title_input.text = MSG_UNTITLED
-        self.text_input.text = ""
+        self.title_input.set_raw_text(MSG_UNTITLED)
+        self.text_input.set_raw_text("")
         self.footer.text = ""
 
     def open_document(self, doc_id):
@@ -567,16 +643,18 @@ class EditorScreen(Screen):
             return
         self.doc_id = data.get("id")
         self.doc_created = data.get("created")
-        self.title_input.text = data.get("title", MSG_UNTITLED)
-        self.text_input.text = data.get("content", "")
-        self.footer.text = ar(f"{MSG_LOADED}: {self.title_input.text}")
+        self.title_input.set_raw_text(data.get("title", MSG_UNTITLED))
+        self.text_input.set_raw_text(data.get("content", ""))
+        self.footer.text = ar(f"{MSG_LOADED}: {data.get('title', '')}")
 
+    # --- Actions ---
     def _on_back(self, *args):
         self.manager.current = "home"
 
     def _on_save(self, *args):
-        title = self.title_input.text.strip() or MSG_UNTITLED
-        content = self.text_input.text
+        # Get RAW text (unprocessed) from both inputs
+        title = self.title_input.get_raw_text().strip() or MSG_UNTITLED
+        content = self.text_input.get_raw_text()
         saved_id = DocManager.save(
             doc_id=self.doc_id, title=title,
             content=content, created=self.doc_created,
