@@ -45,7 +45,7 @@ def _find_font():
         if os.path.exists(c):
             print(f"[FONT] Found: {c}")
             return c
-    print(f"[FONT] NOT FOUND, using: {candidates[0]}")
+    print(f"[FONT] NOT FOUND")
     return candidates[0]
 
 
@@ -55,7 +55,7 @@ FONT_ARABIC = "Arabic"
 try:
     LabelBase.register(name=FONT_ARABIC, fn_regular=_FONT_PATH)
     FONT_LOADED = True
-    print(f"[FONT] Registered OK: {FONT_ARABIC}")
+    print(f"[FONT] Registered OK")
 except Exception as e:
     FONT_LOADED = False
     print(f"[FONT] ERROR: {e}")
@@ -67,64 +67,47 @@ except Exception as e:
 try:
     import arabic_reshaper
     _RESHAPER_OK = True
-    print("[RESHAPER] arabic_reshaper loaded OK")
+    print("[RESHAPER] loaded OK")
 except Exception as e:
     _RESHAPER_OK = False
     print(f"[RESHAPER] ERROR: {e}")
 
 
 def _reverse_arabic(text):
-    """
-    Smart Arabic reversal:
-    - Splits by lines and words
-    - Reverses word order
-    - Reverses each word's letters (except numbers/symbols)
-    """
     if not text:
         return text
-
     lines = text.split("\n")
     result_lines = []
-
     for line in lines:
         if not line.strip():
             result_lines.append(line)
             continue
-
         words = line.split(" ")
         words.reverse()
-
         reversed_words = []
         for word in words:
             if not word:
                 reversed_words.append("")
                 continue
-
             first_char = word[0]
             if first_char.isdigit() or first_char in "0123456789+-*/=.,:;()[]":
                 reversed_words.append(word)
             else:
                 reversed_words.append(word[::-1])
-
         result_lines.append(" ".join(reversed_words))
-
     return "\n".join(result_lines)
 
 
 def ar(text):
-    """Prepare Arabic text for Kivy rendering."""
     if not text:
         return text
-
     if _RESHAPER_OK:
         try:
             reshaped = arabic_reshaper.reshape(text)
         except Exception as e:
-            print(f"[AR] reshape error: {e}")
             reshaped = text
     else:
         reshaped = text
-
     return _reverse_arabic(reshaped)
 
 
@@ -132,34 +115,21 @@ def ar(text):
 # FONT HELPERS
 # ============================================================
 def afont():
-    if FONT_LOADED:
-        return {"font_name": FONT_ARABIC}
-    return {}
+    return {"font_name": FONT_ARABIC} if FONT_LOADED else {}
 
 
 def make_label(text="", **kwargs):
-    """Label with Arabic font + processed text."""
     return Label(text=ar(text), **afont(), **kwargs)
 
 
 def make_button(text="", **kwargs):
-    """Button with Arabic font + processed text."""
     return Button(text=ar(text), **afont(), **kwargs)
 
 
 # ============================================================
-# ARABIC TEXT INPUT (Smart RTL handling)
+# ARABIC TEXT INPUT
 # ============================================================
 class ArabicTextInput(TextInput):
-    """
-    Smart Arabic TextInput:
-    - Stores raw text (unprocessed) in self.raw_text
-    - When focused: shows raw text (user types normally)
-    - When not focused: shows processed text (correct Arabic display)
-    - get_raw_text() returns the original text
-    - set_raw_text(raw) sets raw text and displays processed version
-    """
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.raw_text = ""
@@ -169,32 +139,23 @@ class ArabicTextInput(TextInput):
             self.font_name = FONT_ARABIC
 
     def _on_focus_change(self, instance, focused):
-        """When focus changes, toggle between raw/processed view."""
         if self._processing:
             return
-
         if focused:
-            # User wants to type - show raw text
             self._processing = True
             if self.raw_text:
                 self.text = self.raw_text
             self._processing = False
         else:
-            # User left - store raw and show processed
             self._processing = True
             self.raw_text = self.text
-            processed = ar(self.text)
-            self.text = processed
+            self.text = ar(self.text)
             self._processing = False
 
     def get_raw_text(self):
-        """Get the original unprocessed text."""
-        if self.raw_text:
-            return self.raw_text
-        return self.text
+        return self.raw_text if self.raw_text else self.text
 
     def set_raw_text(self, raw):
-        """Set raw text and display processed version."""
         self._processing = True
         self.raw_text = raw or ""
         if raw:
@@ -205,7 +166,6 @@ class ArabicTextInput(TextInput):
 
 
 def make_input(text="", **kwargs):
-    """Create an ArabicTextInput."""
     return ArabicTextInput(text=text, **kwargs)
 
 
@@ -213,7 +173,7 @@ def make_input(text="", **kwargs):
 # CONFIG
 # ============================================================
 APP_NAME = "محرر أكاديمي"
-APP_VERSION = "3.1.0"
+APP_VERSION = "4.0.0"
 
 COLOR_PRIMARY = (0.12, 0.20, 0.35, 1)
 COLOR_SECONDARY = (0.20, 0.40, 0.60, 1)
@@ -224,8 +184,10 @@ COLOR_TEXT = (0.15, 0.15, 0.15, 1)
 COLOR_TEXT_LIGHT = (0.85, 0.88, 0.92, 1)
 COLOR_TEXT_MUTED = (0.45, 0.50, 0.55, 1)
 COLOR_DANGER = (0.85, 0.25, 0.25, 1)
+COLOR_GOLD = (0.85, 0.65, 0.15, 1)
 COLOR_TOOLBAR_BG = (0.94, 0.95, 0.96, 1)
 COLOR_TOOLBAR_BTN = (0.30, 0.40, 0.50, 1)
+COLOR_TOOLBAR_BTN_ACTIVE = (0.85, 0.65, 0.15, 1)
 
 
 # ============================================================
@@ -254,13 +216,28 @@ MSG_SAVED = "تم حفظ المستند"
 MSG_LOADED = "تم التحميل"
 MSG_NOT_FOUND = "المستند غير موجود"
 MSG_UPDATED = "آخر تحديث"
+
+# Styles
 MSG_TOOL_H1 = "ع1"
 MSG_TOOL_H2 = "ع2"
 MSG_TOOL_BODY = "نص"
 MSG_TOOL_BOLD = "B"
 MSG_TOOL_ITALIC = "I"
 MSG_TOOL_UNDERLINE = "U"
-MSG_HINT_EDITING = "أنت تكتب الآن... النص سيُنسَّق عند الخروج من الحقل"
+MSG_TOOL_TOC = "جدول محتويات"
+
+# Hints
+MSG_HINT = "اكتب سطرًا، ثم اختر نمطه (ع1، ع2، نص)"
+
+# TOC
+MSG_TOC_TITLE = "جدول المحتويات"
+MSG_TOC_EMPTY = "لا توجد عناوين. أضف عناوين أولًا (ع1 أو ع2)"
+
+# Elements
+ELEM_H1 = "h1"
+ELEM_H2 = "h2"
+ELEM_BODY = "body"
+ELEM_TOC = "toc"
 
 
 # ============================================================
@@ -295,7 +272,7 @@ def set_storage_dir():
 
 
 # ============================================================
-# DOC MANAGER
+# DOC MANAGER (with elements support)
 # ============================================================
 class DocManager:
     @staticmethod
@@ -303,24 +280,33 @@ class DocManager:
         return os.path.join(STORAGE_DIR, f"{doc_id}.json")
 
     @staticmethod
-    def save(doc_id, title, content, created=None):
+    def save(doc_id, title, elements, created=None):
         if not doc_id:
             doc_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         os.makedirs(STORAGE_DIR, exist_ok=True)
         if created is None:
             existing = DocManager.load(doc_id)
             created = existing.get("created") if existing else datetime.now().isoformat()
+
+        # Serialize elements
+        elements_data = []
+        for el in elements:
+            elements_data.append({
+                "kind": el.get("kind", ELEM_BODY),
+                "text": el.get("text", ""),
+            })
+
         data = {
             "id": doc_id,
             "title": title or MSG_UNTITLED,
-            "content": content or "",
+            "elements": elements_data,
             "created": created,
             "updated": datetime.now().isoformat(),
         }
         try:
             with open(DocManager.path_for(doc_id), "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
-            print(f"[SAVE] {doc_id}")
+            print(f"[SAVE] {doc_id} ({len(elements_data)} elements)")
             return doc_id
         except Exception as e:
             print(f"[SAVE ERROR] {e}")
@@ -335,7 +321,16 @@ class DocManager:
             return None
         try:
             with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+            # Backward compatibility: convert old "content" to elements
+            if "elements" not in data and "content" in data:
+                old_content = data.get("content", "")
+                elements = []
+                if old_content:
+                    for line in old_content.split("\n"):
+                        elements.append({"kind": ELEM_BODY, "text": line})
+                data["elements"] = elements
+            return data
         except Exception as e:
             print(f"[LOAD ERROR] {e}")
             return None
@@ -487,7 +482,107 @@ class HomeScreen(Screen):
 
 
 # ============================================================
-# EDITOR SCREEN
+# ELEMENT ROW (single line in editor)
+# ============================================================
+class ElementRow(BoxLayout):
+    """
+    A single row in the editor representing one element.
+    Has a text input + style indicator.
+    """
+
+    def __init__(self, kind=ELEM_BODY, text="", on_focus=None, **kwargs):
+        super().__init__(**kwargs)
+        self.orientation = "horizontal"
+        self.size_hint_y = None
+        self.kind = kind
+
+        # Set height based on kind
+        self._update_height()
+
+        # Style badge
+        self.badge = Label(
+            text=self._badge_text(),
+            font_size="10sp",
+            color=(1, 1, 1, 1),
+            bold=True,
+            size_hint=(None, 1),
+            width=dp(35),
+        )
+        with self.badge.canvas.before:
+            self.badge_bg = Color(*self._badge_color())
+            self.badge_rect = Rectangle(pos=self.badge.pos, size=self.badge.size)
+        self.badge.bind(
+            pos=lambda *_: setattr(self.badge_rect, "pos", self.badge.pos),
+            size=lambda *_: setattr(self.badge_rect, "size", self.badge.size),
+        )
+
+        # Text input
+        font_size = self._font_size()
+        bold = kind in (ELEM_H1, ELEM_H2)
+
+        self.text_input = ArabicTextInput(
+            text=text,
+            font_size=font_size,
+            bold=bold,
+            multiline=True,
+            background_color=(1, 1, 1, 1),
+            foreground_color=COLOR_TEXT,
+            cursor_color=COLOR_PRIMARY,
+            size_hint_x=1,
+            halign="right",
+        )
+        self.text_input.set_raw_text(text)
+
+        if on_focus:
+            self.text_input.bind(focus=on_focus)
+
+        self.add_widget(self.badge)
+        self.add_widget(self.text_input)
+
+    def _update_height(self):
+        if self.kind == ELEM_H1:
+            self.height = dp(70)
+        elif self.kind == ELEM_H2:
+            self.height = dp(60)
+        elif self.kind == ELEM_TOC:
+            self.height = dp(120)
+        else:
+            self.height = dp(70)
+
+    def _badge_text(self):
+        if self.kind == ELEM_H1:
+            return "ع1"
+        elif self.kind == ELEM_H2:
+            return "ع2"
+        elif self.kind == ELEM_TOC:
+            return "TOC"
+        return "نص"
+
+    def _badge_color(self):
+        if self.kind == ELEM_H1:
+            return (0.12, 0.20, 0.35, 1)  # Dark navy
+        elif self.kind == ELEM_H2:
+            return (0.20, 0.40, 0.60, 1)  # Medium blue
+        elif self.kind == ELEM_TOC:
+            return (0.85, 0.65, 0.15, 1)  # Gold
+        return (0.55, 0.60, 0.65, 1)  # Gray
+
+    def _font_size(self):
+        if self.kind == ELEM_H1:
+            return "20sp"
+        elif self.kind == ELEM_H2:
+            return "18sp"
+        return "16sp"
+
+    def get_text(self):
+        return self.text_input.get_raw_text()
+
+    def get_kind(self):
+        return self.kind
+
+
+# ============================================================
+# EDITOR SCREEN (with styles + TOC)
 # ============================================================
 class EditorScreen(Screen):
     def __init__(self, **kwargs):
@@ -495,6 +590,7 @@ class EditorScreen(Screen):
         self.name = "editor"
         self.doc_id = None
         self.doc_created = None
+        self.rows = []  # list of ElementRow
 
         root = BoxLayout(orientation="vertical", spacing=0)
         with root.canvas.before:
@@ -505,7 +601,7 @@ class EditorScreen(Screen):
             size=lambda *_: setattr(self.bg, "size", root.size),
         )
 
-        # --- Top bar ---
+        # Top bar
         top = BoxLayout(
             orientation="horizontal",
             size_hint_y=None, height=dp(60),
@@ -528,9 +624,7 @@ class EditorScreen(Screen):
         btn_back.bind(on_release=self._on_back)
 
         self.title_input = make_input(
-            text=MSG_UNTITLED,
-            font_size="18sp",
-            multiline=False,
+            text=MSG_UNTITLED, font_size="18sp", multiline=False,
             background_color=(0, 0, 0, 0),
             foreground_color=(1, 1, 1, 1),
             cursor_color=(1, 1, 1, 1),
@@ -550,11 +644,11 @@ class EditorScreen(Screen):
         top.add_widget(btn_save)
         root.add_widget(top)
 
-        # --- Toolbar ---
+        # Toolbar (with H1, H2, Body, TOC + B, I, U)
         toolbar = BoxLayout(
             orientation="horizontal",
             size_hint_y=None, height=dp(50),
-            padding=[dp(6), dp(4)], spacing=dp(6),
+            padding=[dp(4), dp(4)], spacing=dp(4),
         )
         with toolbar.canvas.before:
             Color(*COLOR_TOOLBAR_BG)
@@ -564,61 +658,79 @@ class EditorScreen(Screen):
             size=lambda *_: setattr(self.tb_bg, "size", toolbar.size),
         )
 
-        for label, action in [
-            (MSG_TOOL_H1, "h1"), (MSG_TOOL_H2, "h2"), (MSG_TOOL_BODY, "body"),
-            (MSG_TOOL_BOLD, "bold"), (MSG_TOOL_ITALIC, "italic"),
-            (MSG_TOOL_UNDERLINE, "underline"),
-        ]:
-            b = make_button(
-                text=label, font_size="14sp",
-                bold=(action in ("h1", "h2")),
-                size_hint_y=None, height=dp(42),
-                size_hint_x=None, width=dp(55),
-                background_normal="",
-                background_color=COLOR_TOOLBAR_BTN,
-                color=(1, 1, 1, 1),
-            )
-            b.bind(on_release=lambda btn, a=action: self._on_tool(a))
-            toolbar.add_widget(b)
+        # Style buttons (H1, H2, Body)
+        btn_h1 = make_button(
+            text=MSG_TOOL_H1, font_size="14sp", bold=True,
+            size_hint_y=None, height=dp(42),
+            size_hint_x=None, width=dp(50),
+            background_normal="", background_color=COLOR_TOOLBAR_BTN,
+            color=(1, 1, 1, 1),
+        )
+        btn_h1.bind(on_release=lambda *_: self._apply_style(ELEM_H1))
+
+        btn_h2 = make_button(
+            text=MSG_TOOL_H2, font_size="14sp", bold=True,
+            size_hint_y=None, height=dp(42),
+            size_hint_x=None, width=dp(50),
+            background_normal="", background_color=COLOR_TOOLBAR_BTN,
+            color=(1, 1, 1, 1),
+        )
+        btn_h2.bind(on_release=lambda *_: self._apply_style(ELEM_H2))
+
+        btn_body = make_button(
+            text=MSG_TOOL_BODY, font_size="14sp",
+            size_hint_y=None, height=dp(42),
+            size_hint_x=None, width=dp(50),
+            background_normal="", background_color=COLOR_TOOLBAR_BTN,
+            color=(1, 1, 1, 1),
+        )
+        btn_body.bind(on_release=lambda *_: self._apply_style(ELEM_BODY))
+
+        # Separator label
+        sep = Label(size_hint_x=None, width=dp(6))
+
+        # TOC button
+        btn_toc = make_button(
+            text=MSG_TOOL_TOC, font_size="12sp", bold=True,
+            size_hint_y=None, height=dp(42),
+            size_hint_x=None, width=dp(110),
+            background_normal="", background_color=COLOR_GOLD,
+            color=(1, 1, 1, 1),
+        )
+        btn_toc.bind(on_release=lambda *_: self._insert_toc())
+
+        toolbar.add_widget(btn_h1)
+        toolbar.add_widget(btn_h2)
+        toolbar.add_widget(btn_body)
+        toolbar.add_widget(sep)
+        toolbar.add_widget(btn_toc)
         toolbar.add_widget(Label())
         root.add_widget(toolbar)
 
-        # --- Hint label ---
-        self.hint_label = make_label(
-            text=MSG_HINT_EDITING,
-            font_size="12sp",
-            color=COLOR_TEXT_MUTED,
+        # Hint
+        hint = make_label(
+            text=MSG_HINT,
+            font_size="12sp", color=COLOR_TEXT_MUTED,
             halign="center",
+            size_hint_y=None, height=dp(28),
+        )
+        root.add_widget(hint)
+
+        # Scrollable editor area
+        self.scroll = ScrollView()
+        self.rows_container = BoxLayout(
+            orientation="vertical",
             size_hint_y=None,
-            height=dp(28),
+            spacing=dp(4),
+            padding=[dp(8), dp(8)],
         )
-        root.add_widget(self.hint_label)
-
-        # --- Editor area ---
-        editor_area = BoxLayout(padding=[dp(12), dp(4)])
-        with editor_area.canvas.before:
-            Color(*COLOR_SURFACE)
-            self.ed_bg = Rectangle(pos=editor_area.pos, size=editor_area.size)
-        editor_area.bind(
-            pos=lambda *_: setattr(self.ed_bg, "pos", editor_area.pos),
-            size=lambda *_: setattr(self.ed_bg, "size", editor_area.size),
+        self.rows_container.bind(
+            minimum_height=self.rows_container.setter("height")
         )
+        self.scroll.add_widget(self.rows_container)
+        root.add_widget(self.scroll)
 
-        self.text_input = make_input(
-            text="",
-            hint_text=MSG_PLACEHOLDER,
-            font_size="17sp",
-            foreground_color=COLOR_TEXT,
-            background_color=COLOR_SURFACE,
-            cursor_color=COLOR_PRIMARY,
-            hint_text_color=(0.6, 0.65, 0.70, 1),
-            multiline=True,
-            halign="right",
-        )
-        editor_area.add_widget(self.text_input)
-        root.add_widget(editor_area)
-
-        # --- Footer ---
+        # Footer
         self.footer = make_label(
             text="", font_size="13sp",
             color=COLOR_TEXT_MUTED,
@@ -628,12 +740,43 @@ class EditorScreen(Screen):
 
         self.add_widget(root)
 
+    # --- Row management ---
+    def _add_row(self, kind=ELEM_BODY, text=""):
+        row = ElementRow(kind=kind, text=text, on_focus=self._on_row_focus)
+        self.rows.append(row)
+        self.rows_container.add_widget(row)
+        return row
+
+    def _remove_row(self, row):
+        if row in self.rows:
+            self.rows.remove(row)
+            self.rows_container.remove_widget(row)
+
+    def _clear_rows(self):
+        self.rows_container.clear_widgets()
+        self.rows = []
+
+    def _on_row_focus(self, instance, focused):
+        """When a row loses focus, ensure there's always an empty body row at the end."""
+        if not focused:
+            # Check if last row is empty body, if not add one
+            if not self.rows or self.rows[-1].get_text().strip() != "":
+                self._add_row(ELEM_BODY, "")
+
+    def _get_active_row(self):
+        """Find the row that currently has focus."""
+        for r in self.rows:
+            if r.text_input.focus:
+                return r
+        return None
+
     # --- Public API ---
     def new_document(self):
         self.doc_id = None
         self.doc_created = None
         self.title_input.set_raw_text(MSG_UNTITLED)
-        self.text_input.set_raw_text("")
+        self._clear_rows()
+        self._add_row(ELEM_BODY, "")
         self.footer.text = ""
 
     def open_document(self, doc_id):
@@ -644,7 +787,17 @@ class EditorScreen(Screen):
         self.doc_id = data.get("id")
         self.doc_created = data.get("created")
         self.title_input.set_raw_text(data.get("title", MSG_UNTITLED))
-        self.text_input.set_raw_text(data.get("content", ""))
+
+        self._clear_rows()
+        elements = data.get("elements", [])
+        if not elements:
+            self._add_row(ELEM_BODY, "")
+        else:
+            for el in elements:
+                self._add_row(el.get("kind", ELEM_BODY), el.get("text", ""))
+            # Add empty row at end
+            self._add_row(ELEM_BODY, "")
+
         self.footer.text = ar(f"{MSG_LOADED}: {data.get('title', '')}")
 
     # --- Actions ---
@@ -652,12 +805,18 @@ class EditorScreen(Screen):
         self.manager.current = "home"
 
     def _on_save(self, *args):
-        # Get RAW text (unprocessed) from both inputs
         title = self.title_input.get_raw_text().strip() or MSG_UNTITLED
-        content = self.text_input.get_raw_text()
+        elements = []
+        for r in self.rows:
+            text = r.get_text()
+            # Skip empty trailing row
+            if not text.strip() and r is self.rows[-1]:
+                continue
+            elements.append({"kind": r.get_kind(), "text": text})
+
         saved_id = DocManager.save(
             doc_id=self.doc_id, title=title,
-            content=content, created=self.doc_created,
+            elements=elements, created=self.doc_created,
         )
         if saved_id:
             self.doc_id = saved_id
@@ -665,8 +824,92 @@ class EditorScreen(Screen):
         else:
             self.footer.text = ar(MSG_SAVE_FAILED)
 
-    def _on_tool(self, action):
-        self.footer.text = ar(action)
+    def _apply_style(self, kind):
+        """Apply style to the currently focused row."""
+        row = self._get_active_row()
+        if row is None:
+            self.footer.text = ar("ضع المؤشر في السطر أولاً")
+            return
+
+        # Find row index
+        idx = self.rows.index(row)
+        text = row.get_text()
+
+        # Remove old row
+        self._remove_row(row)
+
+        # Create new row with new style
+        new_row = ElementRow(kind=kind, text=text, on_focus=self._on_row_focus)
+        # Insert at same index
+        self.rows.insert(idx, new_row)
+        self.rows_container.add_widget(new_row)
+        self.rows_container.remove_widget(new_row)
+        self.rows_container.add_widget(new_row, index=len(self.rows_container.children))
+
+        # Reorder children to match rows order
+        # This is tricky with Kivy's child order. Let's rebuild the container.
+        self.rows_container.clear_widgets()
+        for r in self.rows:
+            self.rows_container.add_widget(r)
+
+        self.footer.text = ar(f"النمط: {self._style_name(kind)}")
+
+        # Refocus on the row
+        from kivy.clock import Clock
+        Clock.schedule_once(lambda dt: setattr(new_row.text_input, "focus", True), 0.1)
+
+    def _style_name(self, kind):
+        if kind == ELEM_H1:
+            return "عنوان 1"
+        elif kind == ELEM_H2:
+            return "عنوان 2"
+        return "نص"
+
+    def _insert_toc(self):
+        """Insert an automatic table of contents."""
+        # Find headings
+        headings = []
+        for r in self.rows:
+            if r.get_kind() in (ELEM_H1, ELEM_H2):
+                text = r.get_text().strip()
+                if text:
+                    headings.append({"kind": r.get_kind(), "text": text})
+
+        if not headings:
+            self.footer.text = ar(MSG_TOC_EMPTY)
+            return
+
+        # Build TOC text
+        toc_lines = [MSG_TOC_TITLE, "─" * 40]
+        for i, h in enumerate(headings, 1):
+            if h["kind"] == ELEM_H1:
+                toc_lines.append(f"{i}. {h['text']}")
+            else:
+                toc_lines.append(f"     • {h['text']}")
+
+        toc_text = "\n".join(toc_lines)
+
+        # Check if TOC already exists
+        toc_row = None
+        for r in self.rows:
+            if r.get_kind() == ELEM_TOC:
+                toc_row = r
+                break
+
+        if toc_row:
+            # Update existing TOC
+            toc_row.text_input.set_raw_text(toc_text)
+            self.footer.text = ar("تم تحديث جدول المحتويات")
+        else:
+            # Insert new TOC at the beginning
+            new_row = ElementRow(kind=ELEM_TOC, text=toc_text, on_focus=self._on_row_focus)
+            self.rows.insert(0, new_row)
+
+            self.rows_container.clear_widgets()
+            for r in self.rows:
+                self.rows_container.add_widget(r)
+
+            self.footer.text = ar("تم إدراج جدول المحتويات")
 
 
 # ============================================================
@@ -865,8 +1108,8 @@ class AcademicWordEditorApp(App):
 
         set_storage_dir()
         print(f"[APP] Storage: {STORAGE_DIR}")
-        print(f"[APP] Font loaded: {FONT_LOADED}")
-        print(f"[APP] Reshaper OK: {_RESHAPER_OK}")
+        print(f"[APP] Font: {FONT_LOADED}")
+        print(f"[APP] Reshaper: {_RESHAPER_OK}")
 
         sm = ScreenManager(transition=SlideTransition(duration=0.2))
         sm.add_widget(HomeScreen(name="home"))
