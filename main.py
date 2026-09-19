@@ -497,33 +497,47 @@ class ElementRow(BoxLayout):
         self.kind = kind
 
         # Set height based on kind
-        self._update_height()
+        if kind == ELEM_H1:
+            self.height = dp(80)
+        elif kind == ELEM_H2:
+            self.height = dp(70)
+        elif kind == ELEM_TOC:
+            self.height = dp(180)
+        else:
+            self.height = dp(70)
 
         # Style badge
+        badge_label_text = self._badge_text()
+        badge_color = self._badge_color()
+
         self.badge = Label(
-            text=self._badge_text(),
+            text=badge_label_text,
             font_size="10sp",
             color=(1, 1, 1, 1),
-            bold=True,
             size_hint=(None, 1),
-            width=dp(35),
+            width=dp(38),
+            **afont()
         )
         with self.badge.canvas.before:
-            self.badge_bg = Color(*self._badge_color())
+            self.badge_bg = Color(*badge_color)
             self.badge_rect = Rectangle(pos=self.badge.pos, size=self.badge.size)
         self.badge.bind(
             pos=lambda *_: setattr(self.badge_rect, "pos", self.badge.pos),
             size=lambda *_: setattr(self.badge_rect, "size", self.badge.size),
         )
 
-        # Text input
-        font_size = self._font_size()
-        bold = kind in (ELEM_H1, ELEM_H2)
+        # Font size based on kind (no bold to avoid Kivy issues)
+        if kind == ELEM_H1:
+            font_size = "22sp"
+        elif kind == ELEM_H2:
+            font_size = "19sp"
+        else:
+            font_size = "16sp"
 
+        # Text input (safe kwargs only)
         self.text_input = ArabicTextInput(
             text=text,
             font_size=font_size,
-            bold=bold,
             multiline=True,
             background_color=(1, 1, 1, 1),
             foreground_color=COLOR_TEXT,
@@ -531,23 +545,20 @@ class ElementRow(BoxLayout):
             size_hint_x=1,
             halign="right",
         )
-        self.text_input.set_raw_text(text)
 
+        # Set raw text
+        try:
+            self.text_input.set_raw_text(text)
+        except Exception as e:
+            print(f"[ROW] set_raw_text error: {e}")
+            self.text_input.text = text
+
+        # Bind focus
         if on_focus:
             self.text_input.bind(focus=on_focus)
 
         self.add_widget(self.badge)
         self.add_widget(self.text_input)
-
-    def _update_height(self):
-        if self.kind == ELEM_H1:
-            self.height = dp(70)
-        elif self.kind == ELEM_H2:
-            self.height = dp(60)
-        elif self.kind == ELEM_TOC:
-            self.height = dp(120)
-        else:
-            self.height = dp(70)
 
     def _badge_text(self):
         if self.kind == ELEM_H1:
@@ -560,22 +571,18 @@ class ElementRow(BoxLayout):
 
     def _badge_color(self):
         if self.kind == ELEM_H1:
-            return (0.12, 0.20, 0.35, 1)  # Dark navy
+            return (0.12, 0.20, 0.35, 1)
         elif self.kind == ELEM_H2:
-            return (0.20, 0.40, 0.60, 1)  # Medium blue
+            return (0.20, 0.40, 0.60, 1)
         elif self.kind == ELEM_TOC:
-            return (0.85, 0.65, 0.15, 1)  # Gold
-        return (0.55, 0.60, 0.65, 1)  # Gray
-
-    def _font_size(self):
-        if self.kind == ELEM_H1:
-            return "20sp"
-        elif self.kind == ELEM_H2:
-            return "18sp"
-        return "16sp"
+            return (0.85, 0.65, 0.15, 1)
+        return (0.55, 0.60, 0.65, 1)
 
     def get_text(self):
-        return self.text_input.get_raw_text()
+        try:
+            return self.text_input.get_raw_text()
+        except Exception:
+            return self.text_input.text
 
     def get_kind(self):
         return self.kind
