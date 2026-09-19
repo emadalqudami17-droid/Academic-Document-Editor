@@ -2,6 +2,7 @@
 # main.py
 import os
 import json
+import zipfile
 from datetime import datetime
 
 from kivy.app import App
@@ -170,10 +171,136 @@ def make_input(text="", **kwargs):
 
 
 # ============================================================
+# DOCX EXPORT (no external deps)
+# ============================================================
+def _escape_xml(text):
+    """Escape XML special characters."""
+    if not text:
+        return ""
+    text = text.replace("&", "&amp;")
+    text = text.replace("<", "&lt;")
+    text = text.replace(">", "&gt;")
+    text = text.replace('"', "&quot;")
+    text = text.replace("'", "&apos;")
+    return text
+
+
+def _paragraph_xml(text, style=None):
+    """Build a single paragraph XML."""
+    text = text or ""
+    lines = text.split("\n")
+    xml_parts = []
+    for line in lines:
+        escaped = _escape_xml(line)
+        if style:
+            xml_parts.append(
+                f'<w:p><w:pPr><w:pStyle w:val="{style}"/><w:bidi/></w:pPr>'
+                f'<w:r><w:rPr><w:rtl/></w:rPr><w:t xml:space="preserve">{escaped}</w:t></w:r></w:p>'
+            )
+        else:
+            xml_parts.append(
+                f'<w:p><w:pPr><w:bidi/></w:pPr>'
+                f'<w:r><w:rPr><w:rtl/></w:rPr><w:t xml:space="preserve">{escaped}</w:t></w:r></w:p>'
+            )
+    return "".join(xml_parts)
+
+
+def export_to_docx(elements, title, output_path):
+    """
+    Create a DOCX file manually (no python-docx).
+    Supports h1, h2, body, toc elements.
+    """
+    # Build paragraphs
+    paragraphs_xml = ""
+    for el in elements:
+        kind = el.get("kind", "body")
+        text = el.get("text", "")
+
+        if not text.strip():
+            # Empty paragraph (spacing)
+            paragraphs_xml += '<w:p/>'
+            continue
+
+        if kind == "h1":
+            paragraphs_xml += _paragraph_xml(text, style="Heading1")
+        elif kind == "h2":
+            paragraphs_xml += _paragraph_xml(text, style="Heading2")
+        elif kind == "toc":
+            # TOC as normal paragraphs
+            paragraphs_xml += _paragraph_xml(text)
+        else:
+            paragraphs_xml += _paragraph_xml(text)
+
+    # Full document.xml
+    document_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">\n'
+        '<w:body>\n'
+        + paragraphs_xml +
+        '<w:sectPr>'
+        '<w:pgSz w:w="12240" w:h="15840"/>'
+        '<w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/>'
+        '<w:bidi/>'
+        '</w:sectPr>'
+        '</w:body>\n'
+        '</w:document>'
+    )
+
+    # Content types
+    content_types = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+        '<Default Extension="xml" ContentType="application/xml"/>'
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+        '<Override PartName="/word/document.xml" '
+        'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
+        '<Override PartName="/word/styles.xml" '
+        'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>'
+        '</Types>'
+    )
+
+    # Relationships
+    rels = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rId1" '
+        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" '
+        'Target="word/document.xml"/>'
+        '</Relationships>'
+    )
+
+    # Styles (minimal)
+    styles_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        '<w:style w:type="paragraph" w:styleId="Heading1">'
+        '<w:name w:val="heading 1"/>'
+        '<w:pPr><w:outlineLvl w:val="0"/></w:pPr>'
+        '<w:rPr><w:b/><w:sz w:val="36"/></w:rPr>'
+        '</w:style>'
+        '<w:style w:type="paragraph" w:styleId="Heading2">'
+        '<w:name w:val="heading 2"/>'
+        '<w:pPr><w:outlineLvl w:val="1"/></w:pPr>'
+        '<w:rPr><w:b/><w:sz w:val="28"/></w:rPr>'
+        '</w:style>'
+        '</w:styles>'
+    )
+
+    # Create DOCX (ZIP)
+    with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as docx:
+        docx.writestr("[Content_Types].xml", content_types)
+        docx.writestr("_rels/.rels", rels)
+        docx.writestr("word/document.xml", document_xml)
+        docx.writestr("word/styles.xml", styles_xml)
+
+    return output_path
+
+
+# ============================================================
 # CONFIG
 # ============================================================
 APP_NAME = "محرر أكاديمي"
-APP_VERSION = "4.1.0"
+APP_VERSION = "5.0.0"
 
 COLOR_PRIMARY = (0.12, 0.20, 0.35, 1)
 COLOR_SECONDARY = (0.20, 0.40, 0.60, 1)
@@ -184,6 +311,7 @@ COLOR_TEXT = (0.15, 0.15, 0.15, 1)
 COLOR_TEXT_LIGHT = (0.85, 0.88, 0.92, 1)
 COLOR_TEXT_MUTED = (0.45, 0.50, 0.55, 1)
 COLOR_DANGER = (0.85, 0.25, 0.25, 1)
+COLOR_SUCCESS = (0.20, 0.65, 0.35, 1)
 COLOR_GOLD = (0.85, 0.65, 0.15, 1)
 COLOR_TOOLBAR_BG = (0.94, 0.95, 0.96, 1)
 COLOR_TOOLBAR_BTN = (0.30, 0.40, 0.50, 1)
@@ -219,10 +347,14 @@ MSG_TOOL_H1 = "ع1"
 MSG_TOOL_H2 = "ع2"
 MSG_TOOL_BODY = "نص"
 MSG_TOOL_TOC = "جدول محتويات"
+MSG_TOOL_EXPORT = "تصدير Word"
 
 MSG_HINT = "اكتب سطرًا، ثم اختر نمطه (ع1، ع2، نص)"
 MSG_TOC_TITLE = "جدول المحتويات"
 MSG_TOC_EMPTY = "لا توجد عناوين. أضف عناوين أولاً (ع1 أو ع2)"
+MSG_EXPORT_OK = "تم التصدير بنجاح"
+MSG_EXPORT_FAIL = "فشل التصدير"
+MSG_EXPORT_NO_DOC = "احفظ المستند أولاً"
 
 ELEM_H1 = "h1"
 ELEM_H2 = "h2"
@@ -231,12 +363,14 @@ ELEM_TOC = "toc"
 
 
 # ============================================================
-# STORAGE
+# STORAGE (app-internal for JSON, external for DOCX)
 # ============================================================
 STORAGE_DIR = None
+EXPORT_DIR = None
 
 
 def get_storage_dir():
+    """Internal storage for JSON documents."""
     candidates = []
     try:
         if App.get_running_app():
@@ -255,10 +389,43 @@ def get_storage_dir():
     return candidates[-1]
 
 
-def set_storage_dir():
-    global STORAGE_DIR
+def get_export_dir():
+    """External storage for DOCX exports (accessible by user)."""
+    candidates = [
+        "/storage/emulated/0/Download/AcademicEditor",
+        "/storage/emulated/0/Documents/AcademicEditor",
+        "/storage/emulated/0/AcademicEditor",
+    ]
+    try:
+        if App.get_running_app():
+            base = App.get_running_app().user_data_dir
+            candidates.append(os.path.join(base, "exports"))
+    except Exception:
+        pass
+    candidates.append(os.path.join("data", "exports"))
+
+    for path in candidates:
+        try:
+            os.makedirs(path, exist_ok=True)
+            # Test write
+            test_file = os.path.join(path, ".write_test")
+            with open(test_file, "w") as f:
+                f.write("test")
+            os.remove(test_file)
+            print(f"[EXPORT] Using: {path}")
+            return path
+        except Exception as e:
+            print(f"[EXPORT] Failed: {path} ({e})")
+            continue
+
+    return candidates[-1]
+
+
+def set_storage_dirs():
+    global STORAGE_DIR, EXPORT_DIR
     STORAGE_DIR = get_storage_dir()
-    return STORAGE_DIR
+    EXPORT_DIR = get_export_dir()
+    return STORAGE_DIR, EXPORT_DIR
 
 
 # ============================================================
@@ -518,7 +685,6 @@ class ElementRow(BoxLayout):
         self.add_widget(self.badge)
         self.add_widget(self.text_input)
 
-        # Apply initial style
         self.set_kind(kind)
 
     def set_kind(self, kind):
@@ -594,7 +760,7 @@ class EditorScreen(Screen):
             size=lambda *_: setattr(self.bg, "size", root.size),
         )
 
-        # --- Top bar ---
+        # Top bar
         top = BoxLayout(
             orientation="horizontal",
             size_hint_y=None, height=dp(60),
@@ -637,7 +803,7 @@ class EditorScreen(Screen):
         top.add_widget(btn_save)
         root.add_widget(top)
 
-        # --- Toolbar ---
+        # Toolbar
         toolbar = BoxLayout(
             orientation="horizontal",
             size_hint_y=None, height=dp(50),
@@ -689,15 +855,24 @@ class EditorScreen(Screen):
         )
         btn_toc.bind(on_release=lambda *_: self._insert_toc())
 
+        btn_export = make_button(
+            text=MSG_TOOL_EXPORT, font_size="12sp", bold=True,
+            size_hint_y=None, height=dp(42),
+            size_hint_x=None, width=dp(110),
+            background_normal="", background_color=COLOR_SUCCESS,
+            color=(1, 1, 1, 1),
+        )
+        btn_export.bind(on_release=lambda *_: self._export_docx())
+
         toolbar.add_widget(btn_h1)
         toolbar.add_widget(btn_h2)
         toolbar.add_widget(btn_body)
         toolbar.add_widget(sep)
         toolbar.add_widget(btn_toc)
+        toolbar.add_widget(btn_export)
         toolbar.add_widget(Label())
         root.add_widget(toolbar)
 
-        # --- Hint ---
         hint = make_label(
             text=MSG_HINT,
             font_size="12sp", color=COLOR_TEXT_MUTED,
@@ -706,7 +881,6 @@ class EditorScreen(Screen):
         )
         root.add_widget(hint)
 
-        # --- Scrollable editor ---
         self.scroll = ScrollView()
         self.rows_container = BoxLayout(
             orientation="vertical",
@@ -720,7 +894,6 @@ class EditorScreen(Screen):
         self.scroll.add_widget(self.rows_container)
         root.add_widget(self.scroll)
 
-        # --- Footer ---
         self.footer = make_label(
             text="", font_size="13sp",
             color=COLOR_TEXT_MUTED,
@@ -730,7 +903,7 @@ class EditorScreen(Screen):
 
         self.add_widget(root)
 
-    # --- Row management ---
+    # Row management
     def _add_row(self, kind=ELEM_BODY, text=""):
         row = ElementRow(kind=kind, text=text, on_focus=self._on_row_focus)
         self.rows.append(row)
@@ -766,7 +939,7 @@ class EditorScreen(Screen):
             return self.last_focused_row
         return None
 
-    # --- Public API ---
+    # Public API
     def new_document(self):
         self.doc_id = None
         self.doc_created = None
@@ -795,7 +968,7 @@ class EditorScreen(Screen):
 
         self.footer.text = ar(f"{MSG_LOADED}: {data.get('title', '')}")
 
-    # --- Actions ---
+    # Actions
     def _on_back(self, *args):
         self.manager.current = "home"
 
@@ -838,26 +1011,45 @@ class EditorScreen(Screen):
         return "نص"
 
     def _insert_toc(self):
+        # Build headings with hierarchy
         headings = []
+        h1_counter = 0
+        h2_counter = 0
+
         for r in self.rows:
-            if r.get_kind() in (ELEM_H1, ELEM_H2):
-                text = r.get_text().strip()
-                if text:
-                    headings.append({"kind": r.get_kind(), "text": text})
+            kind = r.get_kind()
+            text = r.get_text().strip()
+            if kind == ELEM_H1 and text:
+                h1_counter += 1
+                h2_counter = 0
+                headings.append({
+                    "level": 1,
+                    "number": f"{h1_counter}",
+                    "text": text,
+                })
+            elif kind == ELEM_H2 and text:
+                h2_counter += 1
+                headings.append({
+                    "level": 2,
+                    "number": f"{h1_counter}.{h2_counter}",
+                    "text": text,
+                })
 
         if not headings:
             self.footer.text = ar(MSG_TOC_EMPTY)
             return
 
-        toc_lines = [MSG_TOC_TITLE, "─" * 40]
-        for i, h in enumerate(headings, 1):
-            if h["kind"] == ELEM_H1:
-                toc_lines.append(f"{i}. {h['text']}")
+        # Build TOC
+        toc_lines = [MSG_TOC_TITLE, "=" * 35]
+        for h in headings:
+            if h["level"] == 1:
+                toc_lines.append(f"{h['number']}. {h['text']}")
             else:
-                toc_lines.append(f"     • {h['text']}")
+                toc_lines.append(f"   {h['number']} {h['text']}")
 
         toc_text = "\n".join(toc_lines)
 
+        # Find existing TOC
         toc_row = None
         for r in self.rows:
             if r.get_kind() == ELEM_TOC:
@@ -876,6 +1068,83 @@ class EditorScreen(Screen):
                 self.rows_container.add_widget(r)
 
             self.footer.text = ar("تم إدراج جدول المحتويات")
+
+    def _export_docx(self):
+        """Export current document to DOCX."""
+        try:
+            title = self.title_input.get_raw_text().strip() or MSG_UNTITLED
+            elements = []
+            for r in self.rows:
+                text = r.get_text()
+                if not text.strip() and r is self.rows[-1]:
+                    continue
+                elements.append({
+                    "kind": r.get_kind(),
+                    "text": text,
+                })
+
+            if not elements:
+                self.footer.text = ar("لا يوجد محتوى للتصدير")
+                return
+
+            # Sanitize title for filename
+            safe_title = "".join(
+                c for c in title if c.isalnum() or c in " _-"
+            ).strip() or "document"
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"{safe_title}_{timestamp}.docx"
+            output_path = os.path.join(EXPORT_DIR, filename)
+
+            export_to_docx(elements, title, output_path)
+            print(f"[EXPORT] Saved: {output_path}")
+
+            self.footer.text = ar(f"{MSG_EXPORT_OK}: {filename}")
+            self._show_export_popup(output_path)
+
+        except Exception as e:
+            print(f"[EXPORT] ERROR: {e}")
+            import traceback
+            traceback.print_exc()
+            self.footer.text = ar(f"{MSG_EXPORT_FAIL}: {e}")
+
+    def _show_export_popup(self, path):
+        content = BoxLayout(orientation="vertical", padding=dp(16), spacing=dp(10))
+        content.add_widget(make_label(
+            text="تم التصدير إلى:",
+            font_size="14sp",
+            color=COLOR_TEXT,
+            size_hint_y=None, height=dp(30),
+        ))
+        content.add_widget(make_label(
+            text=path,
+            font_size="11sp",
+            color=COLOR_TEXT_MUTED,
+            size_hint_y=None, height=dp(60),
+        ))
+        content.add_widget(make_label(
+            text="افتحه من مدير الملفات",
+            font_size="13sp",
+            color=COLOR_TEXT_MUTED,
+            size_hint_y=None, height=dp(30),
+        ))
+
+        btn = make_button(
+            text="موافق",
+            size_hint_y=None, height=dp(45),
+            background_normal="",
+            background_color=COLOR_SUCCESS,
+            color=(1, 1, 1, 1),
+        )
+        content.add_widget(btn)
+
+        popup = Popup(
+            title=ar("تصدير DOCX"),
+            content=content,
+            size_hint=(0.9, 0.5),
+            auto_dismiss=False,
+        )
+        btn.bind(on_release=popup.dismiss)
+        popup.open()
 
 
 # ============================================================
@@ -1072,8 +1341,9 @@ class AcademicWordEditorApp(App):
         self.title = APP_NAME
         Window.clearcolor = COLOR_BG
 
-        set_storage_dir()
+        set_storage_dirs()
         print(f"[APP] Storage: {STORAGE_DIR}")
+        print(f"[APP] Export: {EXPORT_DIR}")
         print(f"[APP] Font: {FONT_LOADED}")
         print(f"[APP] Reshaper: {_RESHAPER_OK}")
 
